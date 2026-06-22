@@ -165,6 +165,11 @@
           <i class="fa-solid fa-magic"></i>
           <span>Демо-данные</span>
         </button>
+        <button onclick="resetAll()"
+                class="px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 border border-red-200 rounded-lg flex items-center gap-x-1.5">
+          <i class="fa-solid fa-undo"></i>
+          <span>Сброс</span>
+        </button>
       </div>
     </div>
 
@@ -235,10 +240,6 @@
           <div class="flex-1"></div>
 
           <div class="flex items-center gap-x-4 text-sm">
-            <div class="flex items-center gap-x-1.5">
-              <input type="checkbox" id="filter-active" checked onchange="buildMatrix()" class="w-4 h-4 accent-violet-600">
-              <label for="filter-active" class="text-xs">Только активные (не решённые)</label>
-            </div>
             <button id="mirror-mode-btn"
                     onclick="toggleMirrorMode()"
                     class="px-3 py-1.5 text-xs border border-slate-300 bg-white hover:bg-slate-50 rounded-lg flex items-center gap-x-1.5 transition-colors"
@@ -250,21 +251,41 @@
               <i class="fa-solid fa-download"></i>
               <span>CSV</span>
             </button>
-            <button onclick="resetAll()" class="px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 rounded-lg flex items-center gap-x-1.5">
-              <i class="fa-solid fa-undo"></i>
-              <span>Сброс</span>
-            </button>
           </div>
         </div>
 
         <!-- Filters Section -->
         <div class="mt-4 pt-4 border-t border-slate-200">
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             
             <!-- Test / Проверка filter -->
             <div>
-              <label class="block text-xs font-medium text-slate-600 mb-1">Фильтр по проверке</label>
+              <div class="flex items-center justify-between mb-1 gap-2">
+                <label class="text-xs font-medium text-slate-600">Фильтр по проверке</label>
+                <div id="test-filters-actions" class="hidden flex items-center gap-2 text-[10px] shrink-0">
+                  <button type="button" onclick="selectAllTests()"
+                          class="text-violet-600 hover:text-violet-800 hover:underline">Все</button>
+                  <span class="text-slate-300">|</span>
+                  <button type="button" onclick="deselectAllTests()"
+                          class="text-slate-500 hover:text-slate-700 hover:underline">Снять все</button>
+                </div>
+              </div>
               <div id="test-filters" class="flex flex-wrap gap-x-3 gap-y-1 text-xs max-h-20 overflow-auto"></div>
+            </div>
+
+            <!-- Status filter -->
+            <div>
+              <div class="flex items-center justify-between mb-1 gap-2">
+                <label class="text-xs font-medium text-slate-600">Фильтр по статусу</label>
+                <div id="status-filters-actions" class="hidden flex items-center gap-2 text-[10px] shrink-0">
+                  <button type="button" onclick="selectAllStatuses()"
+                          class="text-violet-600 hover:text-violet-800 hover:underline">Все</button>
+                  <span class="text-slate-300">|</span>
+                  <button type="button" onclick="deselectAllStatuses()"
+                          class="text-slate-500 hover:text-slate-700 hover:underline">Снять все</button>
+                </div>
+              </div>
+              <div id="status-filters" class="flex flex-wrap gap-x-3 gap-y-1 text-xs max-h-20 overflow-auto"></div>
             </div>
 
             <!-- Global search -->
@@ -353,6 +374,26 @@
         Доступные свойства определяются автоматически.
       </div>
     </div>
+
+    <footer class="px-6 pb-5 pt-1 border-t border-slate-100 mt-2">
+      <div class="text-xs text-slate-400 flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
+        <a href="https://dzen.ru/a/ajkgTkjrcUrV29xo"
+           target="_blank"
+           rel="noopener noreferrer"
+           class="inline-flex items-center gap-1 hover:text-violet-600 transition-colors">
+          <i class="fa-solid fa-book-open"></i>
+          <span>Инструкция</span>
+        </a>
+        <span class="text-slate-300" aria-hidden="true">·</span>
+        <a href="https://t.me/kuznetsov_bim"
+           target="_blank"
+           rel="noopener noreferrer"
+           class="inline-flex items-center gap-1 hover:text-violet-600 transition-colors">
+          <i class="fa-brands fa-telegram"></i>
+          <span>Telegram автора</span>
+        </a>
+      </div>
+    </footer>
   </div>
 
   <script>
@@ -364,6 +405,8 @@
     let availableProps2 = [];
     let uniqueTests = [];
     let activeTestFilters = []; // array of test names that are checked
+    let uniqueStatuses = [];
+    let activeStatusFilters = []; // array of status values that are checked
     let propertyFilters = [];   // array of {id, prop, operator, value}
     let searchTerm = '';
     let filterTimeout = null;
@@ -815,16 +858,42 @@
 
     // ==================== NEW FILTER SYSTEM ====================
 
+    function getClashStatus(clash) {
+      return (clash.status || '').trim() || '(без статуса)';
+    }
+
+    function collectUniqueStatuses(sourceClashes) {
+      return [...new Set(sourceClashes.map(getClashStatus))].sort((a, b) => a.localeCompare(b, 'ru'));
+    }
+
+    function selectAllTests() {
+      if (uniqueTests.length <= 1) return;
+      activeTestFilters = [...uniqueTests];
+      renderTestFilters();
+      debouncedRebuild();
+    }
+
+    function deselectAllTests() {
+      if (uniqueTests.length <= 1) return;
+      activeTestFilters = [];
+      renderTestFilters();
+      debouncedRebuild();
+    }
+
     function renderTestFilters() {
       const container = document.getElementById('test-filters');
+      const actions = document.getElementById('test-filters-actions');
       if (!container) return;
       container.innerHTML = '';
 
       if (uniqueTests.length <= 1) {
+        if (actions) actions.classList.add('hidden');
         container.innerHTML = '<span class="text-slate-400">Только одна проверка</span>';
         activeTestFilters = [...uniqueTests];
         return;
       }
+
+      if (actions) actions.classList.remove('hidden');
 
       uniqueTests.forEach(test => {
         const checked = activeTestFilters.includes(test);
@@ -843,6 +912,61 @@
             if (!activeTestFilters.includes(test)) activeTestFilters.push(test);
           } else {
             activeTestFilters = activeTestFilters.filter(t => t !== test);
+          }
+          debouncedRebuild();
+        };
+
+        container.appendChild(label);
+      });
+    }
+
+    function selectAllStatuses() {
+      if (uniqueStatuses.length <= 1) return;
+      activeStatusFilters = [...uniqueStatuses];
+      renderStatusFilters();
+      debouncedRebuild();
+    }
+
+    function deselectAllStatuses() {
+      if (uniqueStatuses.length <= 1) return;
+      activeStatusFilters = [];
+      renderStatusFilters();
+      debouncedRebuild();
+    }
+
+    function renderStatusFilters() {
+      const container = document.getElementById('status-filters');
+      const actions = document.getElementById('status-filters-actions');
+      if (!container) return;
+      container.innerHTML = '';
+
+      if (uniqueStatuses.length <= 1) {
+        if (actions) actions.classList.add('hidden');
+        const onlyStatus = uniqueStatuses[0] || '—';
+        container.innerHTML = `<span class="text-slate-400">Только один статус: ${onlyStatus}</span>`;
+        activeStatusFilters = [...uniqueStatuses];
+        return;
+      }
+
+      if (actions) actions.classList.remove('hidden');
+
+      uniqueStatuses.forEach((status, idx) => {
+        const checked = activeStatusFilters.includes(status);
+        const id = 'status-' + idx + '-' + status.replace(/[^a-zA-Z0-9\u0400-\u04FF]+/g, '-');
+
+        const label = document.createElement('label');
+        label.className = 'flex items-center gap-1.5 cursor-pointer px-2 py-0.5 bg-white border rounded hover:bg-slate-50';
+        label.innerHTML = `
+          <input type="checkbox" id="${id}" ${checked ? 'checked' : ''} class="accent-violet-600">
+          <span class="truncate max-w-[160px]" title="${status}">${status}</span>
+        `;
+
+        const cb = label.querySelector('input');
+        cb.onchange = () => {
+          if (cb.checked) {
+            if (!activeStatusFilters.includes(status)) activeStatusFilters.push(status);
+          } else {
+            activeStatusFilters = activeStatusFilters.filter(s => s !== status);
           }
           debouncedRebuild();
         };
@@ -1006,11 +1130,24 @@
       let filtered = sourceClashes;
 
       // 1. Test filter
-      if (activeTestFilters.length > 0 && activeTestFilters.length < uniqueTests.length) {
-        filtered = filtered.filter(c => activeTestFilters.includes(c.testName));
+      if (uniqueTests.length > 1) {
+        if (activeTestFilters.length === 0) {
+          filtered = [];
+        } else if (activeTestFilters.length < uniqueTests.length) {
+          filtered = filtered.filter(c => activeTestFilters.includes(c.testName));
+        }
       }
 
-      // 2. Global search
+      // 2. Status filter
+      if (uniqueStatuses.length > 1) {
+        if (activeStatusFilters.length === 0) {
+          filtered = [];
+        } else if (activeStatusFilters.length < uniqueStatuses.length) {
+          filtered = filtered.filter(c => activeStatusFilters.includes(getClashStatus(c)));
+        }
+      }
+
+      // 3. Global search
       const searchInput = document.getElementById('global-search');
       const term = searchInput ? searchInput.value.trim().toLowerCase() : '';
       if (term) {
@@ -1025,19 +1162,10 @@
         });
       }
 
-      // 3. Custom property filters
+      // 4. Custom property filters
       if (propertyFilters.length > 0) {
         filtered = filtered.filter(c => {
           return propertyFilters.every(f => matchesCustomFilter(c, f));
-        });
-      }
-
-      // 4. Only active (keep existing logic)
-      const onlyActive = document.getElementById('filter-active')?.checked;
-      if (onlyActive) {
-        filtered = filtered.filter(c => {
-          const s = (c.status || '').toLowerCase().trim().replace('.', '');
-          return ['создать', 'активн', 'active', 'new'].some(st => s.includes(st)) || s === '';
         });
       }
 
@@ -1052,18 +1180,17 @@
     }
 
     function clearAllFilters() {
-      // reset tests
       activeTestFilters = [...uniqueTests];
-      // clear search
+      activeStatusFilters = [...uniqueStatuses];
+
       const search = document.getElementById('global-search');
       if (search) search.value = '';
-      // clear property filters
+
       clearPropertyFilterRows();
       propertyFilters = [];
 
-      // re-render test checkboxes
       renderTestFilters();
-
+      renderStatusFilters();
       buildMatrix();
     }
 
@@ -1660,10 +1787,24 @@
       URL.revokeObjectURL(url);
     }
 
+    function applyDefaultHierarchies() {
+      const candidates = ['Категория', 'Элемент Категория', 'Слой', 'Рабочий набор'];
+      rowHierarchy = [];
+      colHierarchy = [];
+      candidates.forEach(c => {
+        if (rowHierarchy.length < 2 && availableProps1.some(p => p.key === c)) rowHierarchy.push(c);
+      });
+      candidates.forEach(c => {
+        if (colHierarchy.length < 2 && availableProps2.some(p => p.key === c)) colHierarchy.push(c);
+      });
+      renderHierarchyUI();
+    }
+
     function handleFileLoad(e) {
       const file = e.target.files[0];
       if (!file) return;
 
+      const input = e.target;
       const reader = new FileReader();
       reader.onload = function(ev) {
         try {
@@ -1671,6 +1812,8 @@
         } catch (err) {
           alert('Ошибка парсинга: ' + err.message);
           console.error(err);
+        } finally {
+          input.value = '';
         }
       };
       reader.readAsText(file, 'UTF-8');
@@ -1706,9 +1849,10 @@
       availableProps1 = props.item1;
       availableProps2 = props.item2;
 
-      // Collect unique tests for multi-test reports
       uniqueTests = [...new Set(clashes.map(c => c.testName).filter(Boolean))];
-      activeTestFilters = [...uniqueTests]; // all selected by default
+      activeTestFilters = [...uniqueTests];
+      uniqueStatuses = collectUniqueStatuses(clashes);
+      activeStatusFilters = [...uniqueStatuses];
 
       document.getElementById('file-name').textContent = filename || 'Загруженный отчёт';
       document.getElementById('loader-section').classList.add('hidden');
@@ -1720,23 +1864,11 @@
 
       populatePropertySelectors();
       renderTestFilters();
+      renderStatusFilters();
       clearPropertyFilterRows();
 
-      // Set default hierarchies (2 levels)
       setTimeout(() => {
-        if (rowHierarchy.length === 0) {
-          const candidates = ['Категория', 'Элемент Категория', 'Слой', 'Рабочий набор'];
-          candidates.forEach(c => {
-            if (rowHierarchy.length < 2 && availableProps1.some(p => p.key === c)) rowHierarchy.push(c);
-          });
-        }
-        if (colHierarchy.length === 0) {
-          const candidates = ['Категория', 'Элемент Категория', 'Слой', 'Рабочий набор'];
-          candidates.forEach(c => {
-            if (colHierarchy.length < 2 && availableProps2.some(p => p.key === c)) colHierarchy.push(c);
-          });
-        }
-        renderHierarchyUI();
+        applyDefaultHierarchies();
         buildMatrix();
       }, 100);
     }
@@ -1808,21 +1940,69 @@
       updateClashCountDisplay();
       updateMirrorModeUI();
 
+      uniqueTests = [...new Set(clashes.map(c => c.testName).filter(Boolean))];
+      activeTestFilters = [...uniqueTests];
+      uniqueStatuses = collectUniqueStatuses(clashes);
+      activeStatusFilters = [...uniqueStatuses];
+
       populatePropertySelectors();
-      setTimeout(buildMatrix, 80);
+      renderTestFilters();
+      renderStatusFilters();
+      clearPropertyFilterRows();
+
+      setTimeout(() => {
+        applyDefaultHierarchies();
+        buildMatrix();
+      }, 80);
     }
 
     function resetAll() {
       clashes = [];
       rawClashes = [];
       mirrorMode = false;
+      rowHierarchy = [];
+      colHierarchy = [];
+      uniqueTests = [];
+      activeTestFilters = [];
+      uniqueStatuses = [];
+      activeStatusFilters = [];
+      propertyFilters = [];
+      availableProps1 = [];
+      availableProps2 = [];
+
+      const fileInput = document.getElementById('file-input');
+      if (fileInput) fileInput.value = '';
+
+      const search = document.getElementById('global-search');
+      if (search) search.value = '';
+
+      clearPropertyFilterRows();
       updateMirrorModeUI();
+      updateClashCountDisplay();
+
       document.getElementById('matrix-container').innerHTML = '';
+      document.getElementById('matrix-title').textContent = '';
+      document.getElementById('stats').innerHTML = '';
       document.getElementById('loader-section').classList.remove('hidden');
       document.getElementById('controls').classList.add('hidden');
       document.getElementById('matrix-section').classList.add('hidden');
       document.getElementById('raw-hint').classList.add('hidden');
       document.getElementById('file-name').textContent = 'Отчёт не загружен';
+
+      const testFiltersActions = document.getElementById('test-filters-actions');
+      if (testFiltersActions) testFiltersActions.classList.add('hidden');
+      const testFilters = document.getElementById('test-filters');
+      if (testFilters) testFilters.innerHTML = '';
+
+      const statusFiltersActions = document.getElementById('status-filters-actions');
+      if (statusFiltersActions) statusFiltersActions.classList.add('hidden');
+      const statusFilters = document.getElementById('status-filters');
+      if (statusFilters) statusFilters.innerHTML = '';
+
+      const rowHierarchyEl = document.getElementById('row-hierarchy');
+      if (rowHierarchyEl) rowHierarchyEl.innerHTML = '';
+      const colHierarchyEl = document.getElementById('col-hierarchy');
+      if (colHierarchyEl) colHierarchyEl.innerHTML = '';
     }
 
     // Keyboard support
@@ -1850,10 +2030,10 @@
       dropZone.addEventListener('drop', function(e) {
         e.preventDefault();
         const file = e.dataTransfer.files[0];
-        if (file && file.name.endsWith('.html')) {
+        if (file && (file.name.toLowerCase().endsWith('.xml') || file.name.toLowerCase().endsWith('.html'))) {
           const reader = new FileReader();
           reader.onload = ev => processLoadedReport(ev.target.result, file.name);
-          reader.readAsText(file);
+          reader.readAsText(file, 'UTF-8');
         }
       });
     }
