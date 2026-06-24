@@ -165,11 +165,25 @@
         </div>
         <div>
           <h1 class="text-2xl font-semibold tracking-tight">Матрица коллизий</h1>
-          <p class="text-xs text-slate-500 -mt-0.5">Navisworks XML Report Analyzer <span class="ml-1 px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] rounded">Проверка 1 (динамические параметры)</span></p>
+          <p class="text-xs text-slate-500 -mt-0.5">Navisworks XML Report Analyzer <span id="file-name" class="ml-1 px-1.5 py-0.5 bg-slate-100 text-slate-500 text-[10px] rounded">Отчёт не загружен</span></p>
         </div>
       </div>
       
       <div class="flex flex-wrap items-center justify-end gap-x-2 gap-y-2 text-sm">
+        <div id="history-controls"
+             class="flex items-center gap-0.5 px-1 py-0.5 bg-slate-100 border border-slate-200 rounded-lg"
+             title="Отмена и повтор изменений настроек (Ctrl+Z / Ctrl+Y)">
+          <button type="button" id="undo-btn" onclick="undoChange()"
+                  class="p-1.5 hover:bg-slate-200 rounded disabled:opacity-40 disabled:pointer-events-none"
+                  title="Отменить (Ctrl+Z)" disabled>
+            <i class="fa-solid fa-arrow-left text-xs"></i>
+          </button>
+          <button type="button" id="redo-btn" onclick="redoChange()"
+                  class="p-1.5 hover:bg-slate-200 rounded disabled:opacity-40 disabled:pointer-events-none"
+                  title="Повторить (Ctrl+Y)" disabled>
+            <i class="fa-solid fa-arrow-right text-xs"></i>
+          </button>
+        </div>
         <div id="profile-controls"
              class="flex items-center gap-x-0.5 px-2 py-1 bg-violet-50 border border-violet-200 rounded-lg text-violet-800"
              title="Профили настроек иерархии и фильтрации (в рамках сессии)">
@@ -203,15 +217,6 @@
           <input type="file" id="profile-import-input" accept=".json,application/json" class="hidden"
                  onchange="handleProfileImport(event)">
         </div>
-        <div class="px-3 py-1 bg-slate-100 rounded-lg text-slate-600 flex items-center gap-x-2">
-          <i class="fa-solid fa-file-code"></i>
-          <span id="file-name">Отчёт не загружен</span>
-        </div>
-        <button onclick="loadDemoData()" 
-                class="px-3 py-1.5 text-xs bg-slate-200 hover:bg-slate-300 rounded-lg flex items-center gap-x-1.5">
-          <i class="fa-solid fa-magic"></i>
-          <span>Демо-данные</span>
-        </button>
         <button onclick="resetAll()"
                 class="px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 border border-red-200 rounded-lg flex items-center gap-x-1.5">
           <i class="fa-solid fa-undo"></i>
@@ -459,7 +464,7 @@
     let filterTimeout = null;
 
     // Hierarchical grouping
-    let rowHierarchy = [];  // e.g. ['Категория', 'Элемент Имя']
+    let rowHierarchy = [];  // e.g. ['Файл', 'Элемент Имя']
     let colHierarchy = [];
 
     // Session profiles (hierarchy + filters presets)
@@ -475,8 +480,8 @@
           createdAt: '2026-06-24T14:07:21.486Z',
           updatedAt: '2026-06-24T14:07:21.486Z',
           state: {
-            rowHierarchy: ['Категория'],
-            colHierarchy: ['Категория'],
+            rowHierarchy: ['Файл'],
+            colHierarchy: ['Файл'],
             activeTestFilters: [
               '01_ВК - ВК', '02_ОВ - ОВ', '03_ЭОМ - ЭОМ', '04_ОВ - ВИС', '05_ЭОМ - ВИС'
             ],
@@ -509,7 +514,7 @@
           createdAt: '2026-06-24T14:08:18.155Z',
           updatedAt: '2026-06-24T14:08:18.155Z',
           state: {
-            rowHierarchy: ['Категория', 'Объект Категория'],
+            rowHierarchy: ['Файл', 'Объект Категория'],
             colHierarchy: [],
             activeTestFilters: [
               '01_ВК - ВК', '02_ОВ - ОВ', '03_ЭОМ - ЭОМ', '04_ОВ - ВИС', '05_ЭОМ - ВИС'
@@ -526,7 +531,7 @@
           createdAt: '2026-06-24T14:08:34.302Z',
           updatedAt: '2026-06-24T14:08:34.302Z',
           state: {
-            rowHierarchy: ['Категория', 'Объект Рабочий набор'],
+            rowHierarchy: ['Файл', 'Объект Рабочий набор'],
             colHierarchy: [],
             activeTestFilters: [
               '01_ВК - ВК', '02_ОВ - ОВ', '03_ЭОМ - ЭОМ', '04_ОВ - ВИС', '05_ЭОМ - ВИС'
@@ -638,6 +643,7 @@
         return;
       }
 
+      recordUndoBeforeChange();
       deselectActiveProfile();
       mirrorMode = !mirrorMode;
       rebuildClashes();
@@ -717,7 +723,7 @@
       // Layer
       const layerEl = objEl.querySelector('layer');
       if (layerEl && layerEl.textContent.trim()) {
-        props['Слой'] = layerEl.textContent.trim();
+        props['Уровень'] = layerEl.textContent.trim();
       }
 
       // Path from pathlink
@@ -730,13 +736,12 @@
         const modelNode = pathNodes.find(n => /\.(nwc|nwd|dwg)$/i.test(n.textContent));
         if (modelNode) props['Модель'] = modelNode.textContent.trim();
 
-        // Heuristic for category: often a few nodes after level/model
+        // Heuristic for file segment from pathlink
         if (pathNodes.length >= 4) {
-          // Try to pick a good category segment
           for (let i = 2; i < Math.min(pathNodes.length - 1, 6); i++) {
             const candidate = pathNodes[i].textContent.trim();
             if (candidate && !/^(Файл|Уровень|Этаж|Модель)/i.test(candidate) && candidate.length > 2) {
-              props['Категория'] = candidate;
+              props['Файл'] = candidate;
               break;
             }
           }
@@ -807,10 +812,10 @@
 
       // Human readable labels - dynamic ones will fall back to the key name itself
       const labelMap = {
-        'Слой': 'Слой',
+        'Уровень': 'Уровень',
         'Путь': 'Путь',
         'Модель': 'Модель',
-        'Категория': 'Категория',
+        'Файл': 'Файл',
         'ID объекта': 'ID объекта',
         'Элемент Имя': 'Элемент Имя',
         'Элемент Тип': 'Элемент Тип',
@@ -947,6 +952,7 @@
       const [moved] = hierarchy.splice(fromIndex, 1);
       hierarchy.splice(toIndex, 0, moved);
 
+      recordUndoBeforeChange();
       deselectActiveProfile();
       resetMatrixSort();
       renderHierarchyUI();
@@ -956,6 +962,7 @@
     function addRowLevel() {
       const sel = document.getElementById('row-level-add');
       if (sel && sel.value && !rowHierarchy.includes(sel.value)) {
+        recordUndoBeforeChange();
         deselectActiveProfile();
         resetMatrixSort();
         rowHierarchy.push(sel.value);
@@ -967,6 +974,7 @@
     function addColLevel() {
       const sel = document.getElementById('col-level-add');
       if (sel && sel.value && !colHierarchy.includes(sel.value)) {
+        recordUndoBeforeChange();
         deselectActiveProfile();
         resetMatrixSort();
         colHierarchy.push(sel.value);
@@ -976,6 +984,7 @@
     }
 
     function removeRowLevel(idx) {
+      recordUndoBeforeChange();
       deselectActiveProfile();
       resetMatrixSort();
       rowHierarchy.splice(idx, 1);
@@ -984,6 +993,7 @@
     }
 
     function removeColLevel(idx) {
+      recordUndoBeforeChange();
       deselectActiveProfile();
       resetMatrixSort();
       colHierarchy.splice(idx, 1);
@@ -992,6 +1002,7 @@
     }
 
     function clearRowHierarchy() {
+      recordUndoBeforeChange();
       deselectActiveProfile();
       resetMatrixSort();
       rowHierarchy = [];
@@ -1000,6 +1011,7 @@
     }
 
     function clearColHierarchy() {
+      recordUndoBeforeChange();
       deselectActiveProfile();
       resetMatrixSort();
       colHierarchy = [];
@@ -1197,6 +1209,7 @@
 
       container.appendChild(row);
       updatePropertyFiltersFromDOM();
+      recordUndoBeforeChange();
       deselectActiveProfile();
     }
 
@@ -1349,6 +1362,7 @@
     }
 
     function debouncedRebuild() {
+      recordUndoDebounced();
       deselectActiveProfile();
       if (filterTimeout) clearTimeout(filterTimeout);
       filterTimeout = setTimeout(() => {
@@ -1357,6 +1371,7 @@
     }
 
     function clearAllFilters() {
+      recordUndoBeforeChange();
       deselectActiveProfile();
       resetMatrixSort();
       activeTestFilters = [...uniqueTests];
@@ -1450,6 +1465,151 @@
       rows: { key: null, direction: null, mode: 'default', level: null, colIndex: null },
       cols: { key: null, direction: null, mode: 'default', level: null, colIndex: null }
     };
+
+    const HISTORY_MAX = 30;
+    let undoStack = [];
+    let redoStack = [];
+    let suppressHistory = false;
+    let undoDebounceBaseline = null;
+    let undoDebounceTimer = null;
+
+    function getDefaultMatrixSort() {
+      return {
+        rows: { key: null, direction: null, mode: 'default', level: null, colIndex: null },
+        cols: { key: null, direction: null, mode: 'default', level: null, colIndex: null }
+      };
+    }
+
+    function clearHistory() {
+      undoStack = [];
+      redoStack = [];
+      undoDebounceBaseline = null;
+      if (undoDebounceTimer) {
+        clearTimeout(undoDebounceTimer);
+        undoDebounceTimer = null;
+      }
+      updateHistoryButtons();
+    }
+
+    function captureAppState() {
+      updatePropertyFiltersFromDOM();
+      const search = document.getElementById('global-search');
+      return JSON.stringify({
+        rowHierarchy: [...rowHierarchy],
+        colHierarchy: [...colHierarchy],
+        activeTestFilters: [...activeTestFilters],
+        activeStatusFilters: [...activeStatusFilters],
+        propertyFilters: propertyFilters.map(({ prop, side, operator, value }) => ({
+          prop,
+          side: side || 'both',
+          operator: operator || 'contains',
+          value: value || ''
+        })),
+        globalSearch: search ? search.value : '',
+        mirrorMode,
+        matrixSort: JSON.parse(JSON.stringify(matrixSort)),
+        activeProfileId
+      });
+    }
+
+    function applyAppState(snapshot) {
+      const state = typeof snapshot === 'string' ? JSON.parse(snapshot) : snapshot;
+      suppressHistory = true;
+      suppressProfileDeselect = true;
+      try {
+        rowHierarchy = [...(state.rowHierarchy || [])];
+        colHierarchy = [...(state.colHierarchy || [])];
+        activeTestFilters = [...(state.activeTestFilters || [])];
+        activeStatusFilters = [...(state.activeStatusFilters || [])];
+
+        const search = document.getElementById('global-search');
+        if (search) search.value = state.globalSearch || '';
+
+        mirrorMode = !!state.mirrorMode;
+        matrixSort = state.matrixSort
+          ? JSON.parse(JSON.stringify(state.matrixSort))
+          : getDefaultMatrixSort();
+        activeProfileId = state.activeProfileId || null;
+
+        rebuildClashes();
+        restorePropertyFilterRows(state.propertyFilters || []);
+        renderHierarchyUI();
+        renderTestFilters();
+        renderStatusFilters();
+        renderProfileSelector();
+        updateClashCountDisplay();
+        updateMirrorModeUI();
+        buildMatrix();
+      } finally {
+        suppressProfileDeselect = false;
+        suppressHistory = false;
+      }
+      updateHistoryButtons();
+    }
+
+    function updateHistoryButtons() {
+      const undoBtn = document.getElementById('undo-btn');
+      const redoBtn = document.getElementById('redo-btn');
+      const hasData = rawClashes.length > 0;
+      if (undoBtn) undoBtn.disabled = !hasData || undoStack.length === 0;
+      if (redoBtn) redoBtn.disabled = !hasData || redoStack.length === 0;
+    }
+
+    function recordUndoBeforeChange() {
+      if (suppressHistory || !rawClashes.length) return;
+      const snap = captureAppState();
+      if (undoStack.length && undoStack[undoStack.length - 1] === snap) return;
+      undoStack.push(snap);
+      if (undoStack.length > HISTORY_MAX) undoStack.shift();
+      redoStack = [];
+      updateHistoryButtons();
+    }
+
+    function recordUndoDebounced() {
+      if (suppressHistory || !rawClashes.length) return;
+      if (!undoDebounceBaseline) undoDebounceBaseline = captureAppState();
+      if (undoDebounceTimer) clearTimeout(undoDebounceTimer);
+      undoDebounceTimer = setTimeout(() => {
+        const baseline = undoDebounceBaseline;
+        undoDebounceBaseline = null;
+        undoDebounceTimer = null;
+        const current = captureAppState();
+        if (baseline !== current) {
+          if (!undoStack.length || undoStack[undoStack.length - 1] !== baseline) {
+            undoStack.push(baseline);
+            if (undoStack.length > HISTORY_MAX) undoStack.shift();
+            redoStack = [];
+            updateHistoryButtons();
+          }
+        }
+      }, 300);
+    }
+
+    function undoChange() {
+      if (!undoStack.length || !rawClashes.length) return;
+      suppressHistory = true;
+      try {
+        redoStack.push(captureAppState());
+        const prev = undoStack.pop();
+        applyAppState(prev);
+      } finally {
+        suppressHistory = false;
+      }
+      updateHistoryButtons();
+    }
+
+    function redoChange() {
+      if (!redoStack.length || !rawClashes.length) return;
+      suppressHistory = true;
+      try {
+        undoStack.push(captureAppState());
+        const next = redoStack.pop();
+        applyAppState(next);
+      } finally {
+        suppressHistory = false;
+      }
+      updateHistoryButtons();
+    }
 
     function resetMatrixSort() {
       matrixSort = {
@@ -1551,6 +1711,7 @@
     }
 
     function cycleMatrixSort(side, key, mode, extra = {}) {
+      recordUndoBeforeChange();
       const cfg = matrixSort[side];
       if (cfg.key === key && cfg.mode === mode) {
         if (cfg.direction === 'asc') {
@@ -1670,7 +1831,7 @@
       const map = {
         level: 'Уровень',
         name: 'Имя',
-        category: 'Категория',
+        category: 'Файл',
         workset: 'Рабочий набор',
         model: 'Модель',
         type: 'Тип',
@@ -1815,7 +1976,17 @@
         const th = document.createElement('th');
         th.className = 'bg-red-100 text-center p-1 text-xs font-semibold border';
         if (useTwoColHeaderRows) th.rowSpan = 2;
-        th.textContent = 'Итого';
+        if (hasRows) {
+          attachSortableHeader(th, {
+            side: 'rows',
+            key: 'total',
+            mode: 'total',
+            label: 'Итого',
+            title: 'Сортировка строк по количеству коллизий'
+          });
+        } else {
+          th.textContent = 'Итого';
+        }
         tr1.appendChild(th);
       }
 
@@ -2201,7 +2372,7 @@
     }
 
     function applyDefaultHierarchies() {
-      const candidates = ['Категория', 'Элемент Категория', 'Слой', 'Рабочий набор'];
+      const candidates = ['Файл', 'Элемент Категория', 'Уровень', 'Рабочий набор'];
       rowHierarchy = [];
       colHierarchy = [];
       candidates.forEach(c => {
@@ -2253,6 +2424,7 @@
       mirrorMode = false;
       resetMatrixSort();
       lastMatrixData = null;
+      clearHistory();
       rebuildClashes();
       
       if (!clashes.length) {
@@ -2269,7 +2441,11 @@
       uniqueStatuses = collectUniqueStatuses(clashes);
       activeStatusFilters = [...uniqueStatuses];
 
-      document.getElementById('file-name').textContent = filename || 'Загруженный отчёт';
+      const fileNameEl = document.getElementById('file-name');
+      if (fileNameEl) {
+        fileNameEl.textContent = filename || 'Загруженный отчёт';
+        fileNameEl.className = 'ml-1 px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] rounded';
+      }
       document.getElementById('loader-section').classList.add('hidden');
       document.getElementById('controls').classList.remove('hidden');
       document.getElementById('matrix-section').classList.remove('hidden');
@@ -2303,15 +2479,29 @@
 
     // Make sure to call this also from checkbox onchange for test filters (already wired in render)
 
-    // DEMO data (synthetic based on real structure)
+    // DEMO data (synthetic based on real Navisworks XML structure)
     function loadDemoData() {
       const demoClashes = [];
       const models = ['ОВ_Проект.nwc', 'ВК_Проект.nwc'];
-      const levels = ['Уровень 2', 'Уровень 1', '<Нет уровня>'];
+      const levels = ['Этаж 02', 'Этаж 01', 'Этаж 00'];
       const categories1 = ['Арматура трубопроводов', 'Трубы', 'Сантехнические приборы'];
       const categories2 = ['Сантехнические приборы', 'Материалы изоляции труб', 'Арматура трубопроводов'];
       const names1 = ['VC_Теплый пол', 'SMB 0473 000003', 'PEX-a труба'];
       const names2 = ['VC_Раковина с полупьедесталом', 'ADSK_Трубки теплоизоляционные', 'Керамика'];
+
+      function makeDemoItem(id, model, level, category, name) {
+        return {
+          'ID объекта': String(id),
+          'Уровень': level,
+          'Путь': `Файл > ${model} > ${level} > ${category} > ${name}`,
+          'Модель': model,
+          'Файл': category,
+          'Объект Категория': category,
+          'Объект Рабочий набор': 'Рабочий набор 1',
+          'Элемент Имя': name,
+          'Элемент Тип': 'Твердое тело'
+        };
+      }
 
       for (let i = 0; i < 38; i++) {
         const m1 = models[0];
@@ -2325,30 +2515,12 @@
 
         demoClashes.push({
           id: i + 1,
+          testName: 'Демо проверка',
           status: i % 5 === 0 ? 'Решено' : 'Создать',
-          distance: (-0.01 * (i % 12) - 0.003).toFixed(3),
+          distance: parseFloat((-0.01 * (i % 12) - 0.003).toFixed(3)),
           description: 'По пересечению (консервативно)',
-          groupInfo: 'Демо',
-          item1: {
-            id: 770000 + i,
-            level: lvl1,
-            path: `Файл > ${m1} > ${lvl1} > ${cat1} > ${n1}`,
-            workset: 'Рабочий набор 1',
-            name: n1,
-            type: 'Твердое тело',
-            model: m1,
-            category: cat1
-          },
-          item2: {
-            id: 2100000 + i,
-            level: lvl2,
-            path: `Файл > ${m2} > ${lvl2} > ${cat2} > ${n2}`,
-            workset: 'Рабочий набор 1',
-            name: n2,
-            type: 'Твердое тело',
-            model: m2,
-            category: cat2
-          }
+          item1: makeDemoItem(770000 + i, m1, lvl1, cat1, n1),
+          item2: makeDemoItem(2100000 + i, m2, lvl2, cat2, n2)
         });
       }
 
@@ -2356,13 +2528,18 @@
       mirrorMode = false;
       resetMatrixSort();
       lastMatrixData = null;
+      clearHistory();
       rebuildClashes();
 
       const props = getAllProperties(clashes);
       availableProps1 = props.item1;
       availableProps2 = props.item2;
 
-      document.getElementById('file-name').textContent = 'Демо-данные (Проект)';
+      const fileNameEl = document.getElementById('file-name');
+      if (fileNameEl) {
+        fileNameEl.textContent = 'Демо-данные (Проект)';
+        fileNameEl.className = 'ml-1 px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] rounded';
+      }
       document.getElementById('loader-section').classList.add('hidden');
       document.getElementById('controls').classList.remove('hidden');
       document.getElementById('matrix-section').classList.remove('hidden');
@@ -2406,13 +2583,22 @@
       };
     }
 
+    const LEGACY_PROP_KEYS = {
+      'Категория': 'Файл',
+      'Слой': 'Уровень'
+    };
+
+    function migratePropKey(key) {
+      return LEGACY_PROP_KEYS[key] || key;
+    }
+
     function sanitizeProfileState(state) {
       if (!state) return null;
 
-      const row = (state.rowHierarchy || []).filter(k =>
+      const row = (state.rowHierarchy || []).map(migratePropKey).filter(k =>
         k === 'testName' || availableProps1.some(p => p.key === k)
       );
-      const col = (state.colHierarchy || []).filter(k =>
+      const col = (state.colHierarchy || []).map(migratePropKey).filter(k =>
         k === 'testName' || availableProps2.some(p => p.key === k)
       );
 
@@ -2423,7 +2609,7 @@
       if (!statuses.length && uniqueStatuses.length) statuses = [...uniqueStatuses];
 
       const filters = (state.propertyFilters || []).map(f => ({
-        prop: f.prop || '',
+        prop: migratePropKey(f.prop || ''),
         side: f.side || 'both',
         operator: f.operator || 'contains',
         value: f.value || ''
@@ -2528,6 +2714,7 @@
         return;
       }
 
+      recordUndoBeforeChange();
       activeProfileId = profileId;
       applyProfileState(profile.state);
       updateProfileControlsState();
@@ -2699,6 +2886,7 @@
       rawClashes = [];
       resetMatrixSort();
       lastMatrixData = null;
+      clearHistory();
       mirrorMode = false;
       rowHierarchy = [];
       colHierarchy = [];
@@ -2727,7 +2915,11 @@
       document.getElementById('controls').classList.add('hidden');
       document.getElementById('matrix-section').classList.add('hidden');
       document.getElementById('raw-hint').classList.add('hidden');
-      document.getElementById('file-name').textContent = 'Отчёт не загружен';
+      const fileNameEl = document.getElementById('file-name');
+      if (fileNameEl) {
+        fileNameEl.textContent = 'Отчёт не загружен';
+        fileNameEl.className = 'ml-1 px-1.5 py-0.5 bg-slate-100 text-slate-500 text-[10px] rounded';
+      }
 
       const testFiltersActions = document.getElementById('test-filters-actions');
       if (testFiltersActions) testFiltersActions.classList.add('hidden');
@@ -2751,6 +2943,22 @@
     // Keyboard support
     function initKeyboard() {
       document.addEventListener('keydown', function(e) {
+        const tag = document.activeElement?.tagName;
+        const inField = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+
+        if ((e.ctrlKey || e.metaKey) && !inField) {
+          if (e.key === 'z' && !e.shiftKey) {
+            e.preventDefault();
+            undoChange();
+            return;
+          }
+          if (e.key === 'y' || (e.key === 'z' && e.shiftKey)) {
+            e.preventDefault();
+            redoChange();
+            return;
+          }
+        }
+
         if (e.key === '/' && document.activeElement.tagName === 'BODY') {
           e.preventDefault();
           // legacy row-prop reference removed
@@ -2765,6 +2973,7 @@
       initFullscreenSupport();
       initDefaultProfiles();
       renderProfileSelector();
+      updateHistoryButtons();
 
       // Auto hint if file exists in same folder context
       console.log('%c[Navisworks Matrix] HTML сервис готов. Загрузите отчёт.', 'color:#64748b');
