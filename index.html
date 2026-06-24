@@ -139,6 +139,20 @@
       gap: 6px;
       box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.2);
     }
+
+    .matrix-sortable {
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.12s;
+    }
+
+    .matrix-sortable:hover {
+      filter: brightness(0.96);
+    }
+
+    .matrix-sort-active {
+      box-shadow: inset 0 -2px 0 #6366f1;
+    }
   </style>
 </head>
 <body class="bg-slate-50 text-slate-800">
@@ -155,7 +169,40 @@
         </div>
       </div>
       
-      <div class="flex items-center gap-x-2 text-sm">
+      <div class="flex flex-wrap items-center justify-end gap-x-2 gap-y-2 text-sm">
+        <div id="profile-controls"
+             class="flex items-center gap-x-0.5 px-2 py-1 bg-violet-50 border border-violet-200 rounded-lg text-violet-800"
+             title="Профили настроек иерархии и фильтрации (в рамках сессии)">
+          <i class="fa-solid fa-bookmark text-xs ml-0.5"></i>
+          <select id="profile-select"
+                  onchange="onProfileSelectChange(this.value)"
+                  class="text-xs bg-transparent border-0 focus:ring-0 py-0.5 pl-1 pr-5 max-w-[160px] cursor-pointer disabled:cursor-not-allowed disabled:opacity-50">
+            <option value="">Профиль…</option>
+          </select>
+          <button type="button" id="profile-save-btn" onclick="saveProfilePrompt()"
+                  class="p-1.5 hover:bg-violet-200 rounded disabled:opacity-40 disabled:pointer-events-none"
+                  title="Сохранить текущие настройки в профиль" disabled>
+            <i class="fa-solid fa-plus text-xs"></i>
+          </button>
+          <button type="button" id="profile-delete-btn" onclick="deleteSelectedProfile()"
+                  class="p-1.5 hover:bg-violet-200 rounded disabled:opacity-40 disabled:pointer-events-none"
+                  title="Удалить выбранный профиль" disabled>
+            <i class="fa-solid fa-trash-can text-xs"></i>
+          </button>
+          <span class="text-violet-300 mx-0.5">|</span>
+          <button type="button" onclick="exportProfiles()"
+                  class="p-1.5 hover:bg-violet-200 rounded"
+                  title="Экспорт профилей в JSON-файл">
+            <i class="fa-solid fa-file-export text-xs"></i>
+          </button>
+          <button type="button" onclick="triggerProfileImport()"
+                  class="p-1.5 hover:bg-violet-200 rounded"
+                  title="Импорт профилей из JSON-файла">
+            <i class="fa-solid fa-file-import text-xs"></i>
+          </button>
+          <input type="file" id="profile-import-input" accept=".json,application/json" class="hidden"
+                 onchange="handleProfileImport(event)">
+        </div>
         <div class="px-3 py-1 bg-slate-100 rounded-lg text-slate-600 flex items-center gap-x-2">
           <i class="fa-solid fa-file-code"></i>
           <span id="file-name">Отчёт не загружен</span>
@@ -415,6 +462,95 @@
     let rowHierarchy = [];  // e.g. ['Категория', 'Элемент Имя']
     let colHierarchy = [];
 
+    // Session profiles (hierarchy + filters presets)
+    const PROFILE_FORMAT = 'clash-matrix-profiles';
+    const PROFILE_VERSION = 1;
+    const DEFAULT_PROFILES = {
+      format: PROFILE_FORMAT,
+      version: PROFILE_VERSION,
+      profiles: [
+        {
+          id: 'prof-1782310041486-m2by1',
+          name: 'Модель х Модель',
+          createdAt: '2026-06-24T14:07:21.486Z',
+          updatedAt: '2026-06-24T14:07:21.486Z',
+          state: {
+            rowHierarchy: ['Категория'],
+            colHierarchy: ['Категория'],
+            activeTestFilters: [
+              '01_ВК - ВК', '02_ОВ - ОВ', '03_ЭОМ - ЭОМ', '04_ОВ - ВИС', '05_ЭОМ - ВИС'
+            ],
+            activeStatusFilters: ['Активн.', 'Создать'],
+            propertyFilters: [],
+            globalSearch: '',
+            mirrorMode: false
+          }
+        },
+        {
+          id: 'prof-1782310061438-dr61i',
+          name: 'Категория х Категория',
+          createdAt: '2026-06-24T14:07:41.438Z',
+          updatedAt: '2026-06-24T14:07:41.438Z',
+          state: {
+            rowHierarchy: ['Объект Категория'],
+            colHierarchy: ['Объект Категория'],
+            activeTestFilters: [
+              '01_ВК - ВК', '02_ОВ - ОВ', '03_ЭОМ - ЭОМ', '04_ОВ - ВИС', '05_ЭОМ - ВИС'
+            ],
+            activeStatusFilters: ['Активн.', 'Создать'],
+            propertyFilters: [],
+            globalSearch: '',
+            mirrorMode: false
+          }
+        },
+        {
+          id: 'prof-1782310098155-egew5',
+          name: 'Модель > Категория',
+          createdAt: '2026-06-24T14:08:18.155Z',
+          updatedAt: '2026-06-24T14:08:18.155Z',
+          state: {
+            rowHierarchy: ['Категория', 'Объект Категория'],
+            colHierarchy: [],
+            activeTestFilters: [
+              '01_ВК - ВК', '02_ОВ - ОВ', '03_ЭОМ - ЭОМ', '04_ОВ - ВИС', '05_ЭОМ - ВИС'
+            ],
+            activeStatusFilters: ['Активн.', 'Создать'],
+            propertyFilters: [],
+            globalSearch: '',
+            mirrorMode: true
+          }
+        },
+        {
+          id: 'prof-1782310114302-7lh2t',
+          name: 'Модель > Рабочий набор',
+          createdAt: '2026-06-24T14:08:34.302Z',
+          updatedAt: '2026-06-24T14:08:34.302Z',
+          state: {
+            rowHierarchy: ['Категория', 'Объект Рабочий набор'],
+            colHierarchy: [],
+            activeTestFilters: [
+              '01_ВК - ВК', '02_ОВ - ОВ', '03_ЭОМ - ЭОМ', '04_ОВ - ВИС', '05_ЭОМ - ВИС'
+            ],
+            activeStatusFilters: ['Активн.', 'Создать'],
+            propertyFilters: [],
+            globalSearch: '',
+            mirrorMode: true
+          }
+        }
+      ]
+    };
+    let sessionProfiles = [];
+    let activeProfileId = null;
+    let suppressProfileDeselect = false;
+
+    function deselectActiveProfile() {
+      if (suppressProfileDeselect || !activeProfileId) return;
+      activeProfileId = null;
+      const select = document.getElementById('profile-select');
+      if (select) select.value = '';
+      updateProfileControlsState();
+    }
+
     function tailwindInit() {
       // Tailwind script already loaded via CDN
     }
@@ -502,6 +638,7 @@
         return;
       }
 
+      deselectActiveProfile();
       mirrorMode = !mirrorMode;
       rebuildClashes();
       refreshPropertiesAndMatrix();
@@ -810,6 +947,8 @@
       const [moved] = hierarchy.splice(fromIndex, 1);
       hierarchy.splice(toIndex, 0, moved);
 
+      deselectActiveProfile();
+      resetMatrixSort();
       renderHierarchyUI();
       buildMatrix();
     }
@@ -817,6 +956,8 @@
     function addRowLevel() {
       const sel = document.getElementById('row-level-add');
       if (sel && sel.value && !rowHierarchy.includes(sel.value)) {
+        deselectActiveProfile();
+        resetMatrixSort();
         rowHierarchy.push(sel.value);
         renderHierarchyUI();
         buildMatrix();
@@ -826,6 +967,8 @@
     function addColLevel() {
       const sel = document.getElementById('col-level-add');
       if (sel && sel.value && !colHierarchy.includes(sel.value)) {
+        deselectActiveProfile();
+        resetMatrixSort();
         colHierarchy.push(sel.value);
         renderHierarchyUI();
         buildMatrix();
@@ -833,24 +976,32 @@
     }
 
     function removeRowLevel(idx) {
+      deselectActiveProfile();
+      resetMatrixSort();
       rowHierarchy.splice(idx, 1);
       renderHierarchyUI();
       buildMatrix();
     }
 
     function removeColLevel(idx) {
+      deselectActiveProfile();
+      resetMatrixSort();
       colHierarchy.splice(idx, 1);
       renderHierarchyUI();
       buildMatrix();
     }
 
     function clearRowHierarchy() {
+      deselectActiveProfile();
+      resetMatrixSort();
       rowHierarchy = [];
       renderHierarchyUI();
       buildMatrix();
     }
 
     function clearColHierarchy() {
+      deselectActiveProfile();
+      resetMatrixSort();
       colHierarchy = [];
       renderHierarchyUI();
       buildMatrix();
@@ -975,12 +1126,12 @@
       });
     }
 
-    function addPropertyFilterRow() {
+    function addPropertyFilterRow(initial = null) {
       const container = document.getElementById('property-filter-rows');
       if (!container) return;
 
       const allProps = getAllFilterableProps();
-      const id = 'pf-' + Date.now();
+      const id = 'pf-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
 
       const row = document.createElement('div');
       row.className = 'flex gap-2 items-center bg-slate-50 p-1.5 rounded border';
@@ -1008,6 +1159,27 @@
         <button class="remove-filter text-red-500 hover:text-red-700 px-1">✕</button>
       `;
 
+      if (initial) {
+        const propEl = row.querySelector('.filter-prop');
+        const sideEl = row.querySelector('.filter-side');
+        const opEl = row.querySelector('.filter-op');
+        const valEl = row.querySelector('.filter-value');
+
+        if (initial.prop && allProps.includes(initial.prop)) {
+          propEl.value = initial.prop;
+        } else if (initial.prop) {
+          const opt = document.createElement('option');
+          opt.value = initial.prop;
+          opt.textContent = initial.prop + ' (недоступно)';
+          propEl.appendChild(opt);
+          propEl.value = initial.prop;
+        }
+
+        if (sideEl && initial.side) sideEl.value = initial.side;
+        if (opEl && initial.operator) opEl.value = initial.operator;
+        if (valEl && initial.value != null) valEl.value = initial.value;
+      }
+
       const removeBtn = row.querySelector('.remove-filter');
       removeBtn.onclick = () => {
         row.remove();
@@ -1024,9 +1196,13 @@
       });
 
       container.appendChild(row);
-
-      // Add initial filter state
       updatePropertyFiltersFromDOM();
+      deselectActiveProfile();
+    }
+
+    function restorePropertyFilterRows(filters) {
+      clearPropertyFilterRows();
+      (filters || []).forEach(f => addPropertyFilterRow(f));
     }
 
     function updatePropertyFiltersFromDOM() {
@@ -1173,6 +1349,7 @@
     }
 
     function debouncedRebuild() {
+      deselectActiveProfile();
       if (filterTimeout) clearTimeout(filterTimeout);
       filterTimeout = setTimeout(() => {
         buildMatrix();
@@ -1180,6 +1357,8 @@
     }
 
     function clearAllFilters() {
+      deselectActiveProfile();
+      resetMatrixSort();
       activeTestFilters = [...uniqueTests];
       activeStatusFilters = [...uniqueStatuses];
 
@@ -1221,6 +1400,15 @@
         // Build hierarchical data
         const { rowGroups, colGroups, leafMatrix, total } = buildHierarchicalData(filtered, rowHierarchy, colHierarchy);
 
+        lastMatrixData = {
+          rowGroups,
+          colGroups,
+          leafMatrix,
+          total,
+          rowLevels: [...rowHierarchy],
+          colLevels: [...colHierarchy]
+        };
+
         // Render hierarchical table
         renderHierarchicalMatrix(rowGroups, colGroups, leafMatrix, total, rowHierarchy, colHierarchy);
 
@@ -1257,14 +1445,159 @@
         .map(g => g.fullPath || [g.key]);
     }
 
+    let lastMatrixData = null;
+    let matrixSort = {
+      rows: { key: null, direction: null, mode: 'default', level: null, colIndex: null },
+      cols: { key: null, direction: null, mode: 'default', level: null, colIndex: null }
+    };
+
+    function resetMatrixSort() {
+      matrixSort = {
+        rows: { key: null, direction: null, mode: 'default', level: null, colIndex: null },
+        cols: { key: null, direction: null, mode: 'default', level: null, colIndex: null }
+      };
+    }
+
+    function resetMatrixSortSide(side) {
+      matrixSort[side] = { key: null, direction: null, mode: 'default', level: null, colIndex: null };
+    }
+
+    function pathToKey(path) {
+      return (path || []).join('||');
+    }
+
     function sortMatrixPaths(paths) {
-      return [...paths].sort((a, b) => {
-        for (let i = 0; i < Math.max(a.length, b.length); i++) {
-          const cmp = (a[i] || '').localeCompare(b[i] || '', 'ru');
-          if (cmp !== 0) return cmp;
-        }
-        return 0;
+      return [...paths].sort((a, b) => comparePathsAlpha(a, b, -1, 'asc'));
+    }
+
+    function comparePathsAlpha(a, b, primaryLevel, dir) {
+      const d = dir === 'desc' ? -1 : 1;
+      const lv = primaryLevel != null && primaryLevel >= 0 ? primaryLevel : -1;
+
+      if (lv >= 0) {
+        const cmp = (a[lv] || '').localeCompare(b[lv] || '', 'ru');
+        if (cmp !== 0) return cmp * d;
+      }
+
+      for (let i = 0; i < Math.max(a.length, b.length); i++) {
+        if (i === lv) continue;
+        const t = (a[i] || '').localeCompare(b[i] || '', 'ru');
+        if (t !== 0) return t;
+      }
+      return 0;
+    }
+
+    function computeRowTotals(rowPaths, colPaths, leafMatrix, hasRows, hasCols) {
+      const totals = new Map();
+      rowPaths.forEach(rowPath => {
+        let sum = 0;
+        colPaths.forEach(colPath => {
+          sum += leafMatrix.get(makeMatrixKey(rowPath, colPath, hasRows, hasCols)) || 0;
+        });
+        totals.set(pathToKey(rowPath), sum);
       });
+      return totals;
+    }
+
+    function computeColTotals(colPaths, rowPaths, leafMatrix, hasRows, hasCols) {
+      const totals = new Map();
+      colPaths.forEach(colPath => {
+        let sum = 0;
+        rowPaths.forEach(rowPath => {
+          sum += leafMatrix.get(makeMatrixKey(rowPath, colPath, hasRows, hasCols)) || 0;
+        });
+        totals.set(pathToKey(colPath), sum);
+      });
+      return totals;
+    }
+
+    function sortMatrixPathsWithConfig(paths, sortCfg, context) {
+      if (!sortCfg || sortCfg.mode === 'default' || !sortCfg.key || !sortCfg.direction) {
+        return sortMatrixPaths(paths);
+      }
+
+      const dir = sortCfg.direction;
+
+      if (sortCfg.mode === 'alpha') {
+        const level = sortCfg.level ?? 0;
+        return [...paths].sort((a, b) => comparePathsAlpha(a, b, level, dir));
+      }
+
+      if (sortCfg.mode === 'total') {
+        const totals = context.computeTotals(paths);
+        const d = dir === 'desc' ? -1 : 1;
+        return [...paths].sort((a, b) => {
+          const ta = totals.get(pathToKey(a)) || 0;
+          const tb = totals.get(pathToKey(b)) || 0;
+          if (ta !== tb) return (ta - tb) * d;
+          return comparePathsAlpha(a, b, -1, 'asc');
+        });
+      }
+
+      if (sortCfg.mode === 'column') {
+        const colPath = context.colPaths[sortCfg.colIndex];
+        if (!colPath) return sortMatrixPaths(paths);
+        const { leafMatrix, hasRows, hasCols } = context;
+        const d = dir === 'desc' ? -1 : 1;
+        return [...paths].sort((a, b) => {
+          const ca = leafMatrix.get(makeMatrixKey(a, colPath, hasRows, hasCols)) || 0;
+          const cb = leafMatrix.get(makeMatrixKey(b, colPath, hasRows, hasCols)) || 0;
+          if (ca !== cb) return (ca - cb) * d;
+          return comparePathsAlpha(a, b, -1, 'asc');
+        });
+      }
+
+      return sortMatrixPaths(paths);
+    }
+
+    function cycleMatrixSort(side, key, mode, extra = {}) {
+      const cfg = matrixSort[side];
+      if (cfg.key === key && cfg.mode === mode) {
+        if (cfg.direction === 'asc') {
+          matrixSort[side] = { ...cfg, direction: 'desc' };
+        } else {
+          resetMatrixSortSide(side);
+        }
+      } else {
+        matrixSort[side] = {
+          key,
+          direction: 'asc',
+          mode,
+          level: extra.level ?? null,
+          colIndex: extra.colIndex ?? null
+        };
+      }
+      rerenderMatrixFromCache();
+    }
+
+    function rerenderMatrixFromCache() {
+      if (!lastMatrixData) return;
+      const { rowGroups, colGroups, leafMatrix, total, rowLevels, colLevels } = lastMatrixData;
+      renderHierarchicalMatrix(rowGroups, colGroups, leafMatrix, total, rowLevels, colLevels);
+    }
+
+    function formatSortLabel(label, side, key, mode) {
+      const cfg = matrixSort[side];
+      if (cfg.key === key && cfg.mode === mode && cfg.direction) {
+        return label + (cfg.direction === 'desc' ? ' ↓' : ' ↑');
+      }
+      return label;
+    }
+
+    function isSortActive(side, key, mode) {
+      const cfg = matrixSort[side];
+      return cfg.key === key && cfg.mode === mode && !!cfg.direction;
+    }
+
+    function attachSortableHeader(th, { side, key, mode, level, colIndex, label, title }) {
+      th.classList.add('matrix-sortable');
+      th.textContent = formatSortLabel(label, side, key, mode);
+      if (isSortActive(side, key, mode)) th.classList.add('matrix-sort-active');
+      th.title = (title || label) + ' · Клик: сортировка (А→Я → Я→А → сброс)';
+      th.onclick = (e) => {
+        e.stopPropagation();
+        cycleMatrixSort(side, key, mode, { level, colIndex });
+      };
     }
 
     function buildHierarchicalData(clashes, rowLevels, colLevels) {
@@ -1364,8 +1697,24 @@
       const numRowLvls = rowLevels.length;
       const numColLvls = colLevels.length;
 
-      const allRowPaths = sortMatrixPaths(getLeafPaths(rowGroups, numRowLvls));
-      const allColPaths = sortMatrixPaths(getLeafPaths(colGroups, numColLvls));
+      const rawRowPaths = getLeafPaths(rowGroups, numRowLvls);
+      const rawColPaths = getLeafPaths(colGroups, numColLvls);
+
+      const allColPaths = sortMatrixPathsWithConfig(rawColPaths, matrixSort.cols, {
+        leafMatrix,
+        hasRows,
+        hasCols,
+        colPaths: rawColPaths,
+        computeTotals: (paths) => computeColTotals(paths, rawRowPaths, leafMatrix, hasRows, hasCols)
+      });
+
+      const allRowPaths = sortMatrixPathsWithConfig(rawRowPaths, matrixSort.rows, {
+        leafMatrix,
+        hasRows,
+        hasCols,
+        colPaths: allColPaths,
+        computeTotals: (paths) => computeRowTotals(paths, allColPaths, leafMatrix, hasRows, hasCols)
+      });
 
       if ((hasRows && !allRowPaths.length) || (hasCols && !allColPaths.length)) {
         container.innerHTML = '<div class="p-4 text-center text-slate-500">Нет данных для матрицы.</div>';
@@ -1391,11 +1740,18 @@
         rowLevels.forEach((lvl, i) => {
           const th = document.createElement('th');
           th.className = 'bg-blue-100 text-left p-1 text-xs font-semibold border';
-          th.textContent = labelFor(lvl);
           th.style.position = 'sticky';
           th.style.left = (i * 105) + 'px';
           th.style.zIndex = '25';
           if (useTwoColHeaderRows) th.rowSpan = 2;
+          attachSortableHeader(th, {
+            side: 'rows',
+            key: 'level:' + i,
+            mode: 'alpha',
+            level: i,
+            label: labelFor(lvl),
+            title: 'Сортировка строк по «' + labelFor(lvl) + '»'
+          });
           tr1.appendChild(th);
         });
       } else {
@@ -1411,10 +1767,27 @@
 
       if (hasCols) {
         if (!useTwoColHeaderRows) {
-          allColPaths.forEach(path => {
+          allColPaths.forEach((path, colIdx) => {
             const th = document.createElement('th');
             th.className = 'bg-red-100 text-center p-1 text-xs font-semibold border';
-            th.textContent = path[0] || '';
+            attachSortableHeader(th, {
+              side: 'rows',
+              key: 'col:' + colIdx,
+              mode: 'column',
+              colIndex: colIdx,
+              label: path[0] || '',
+              title: 'Сортировка строк по столбцу «' + (path.join(' > ') || path[0]) + '»'
+            });
+            th.onclick = (e) => {
+              if (e.ctrlKey) {
+                e.stopPropagation();
+                cycleMatrixSort('cols', 'level:0', 'alpha', { level: 0 });
+                return;
+              }
+              e.stopPropagation();
+              cycleMatrixSort('rows', 'col:' + colIdx, 'column', { colIndex: colIdx });
+            };
+            th.title += ' · Ctrl+клик: сортировка столбцов А→Я';
             tr1.appendChild(th);
           });
         } else {
@@ -1427,7 +1800,14 @@
             const th = document.createElement('th');
             th.colSpan = c;
             th.className = 'bg-red-100 text-center p-1 text-xs font-semibold border';
-            th.textContent = `${colLevels[0]}: ${k}`;
+            attachSortableHeader(th, {
+              side: 'cols',
+              key: 'level:0',
+              mode: 'alpha',
+              level: 0,
+              label: colLevels[0] + ': ' + k,
+              title: 'Сортировка столбцов по «' + labelFor(colLevels[0]) + '»'
+            });
             tr1.appendChild(th);
           });
         }
@@ -1443,7 +1823,13 @@
         const tot1 = document.createElement('th');
         tot1.className = 'bg-slate-200 font-bold text-center p-1 text-xs border';
         if (useTwoColHeaderRows) tot1.rowSpan = 2;
-        tot1.textContent = 'Итого';
+        attachSortableHeader(tot1, {
+          side: 'rows',
+          key: 'total',
+          mode: 'total',
+          label: 'Итого',
+          title: 'Сортировка строк по сумме коллизий'
+        });
         tr1.appendChild(tot1);
       }
 
@@ -1456,15 +1842,30 @@
         tr2.style.zIndex = '20';
         tr2.style.backgroundColor = '#fff';
 
-        allColPaths.forEach(path => {
+        allColPaths.forEach((path, colIdx) => {
           const th = document.createElement('th');
           th.className = 'bg-red-50 text-center p-0.5 text-[10px] leading-tight border';
-          if (numColLvls === 2) {
-            th.textContent = path[1] || '';
-          } else {
-            th.textContent = path.slice(1).join(' > ');
+          const leafLabel = numColLvls === 2 ? (path[1] || '') : path.slice(1).join(' > ');
+          attachSortableHeader(th, {
+            side: 'rows',
+            key: 'col:' + colIdx,
+            mode: 'column',
+            colIndex: colIdx,
+            label: leafLabel,
+            title: 'Сортировка строк по столбцу «' + path.join(' > ') + '»'
+          });
+          if (numColLvls >= 2) {
+            const prevOnclick = th.onclick;
+            th.onclick = (e) => {
+              if (e.ctrlKey) {
+                e.stopPropagation();
+                cycleMatrixSort('cols', 'level:1', 'alpha', { level: 1 });
+                return;
+              }
+              prevOnclick(e);
+            };
+            th.title += ' · Ctrl+клик: сортировка столбцов по 2-му уровню';
           }
-          th.title = path.join(' > ');
           tr2.appendChild(th);
         });
 
@@ -1538,11 +1939,20 @@
         rowLevels.forEach((_, i) => {
           const td = document.createElement('td');
           td.className = 'p-1 text-xs border';
-          td.textContent = i === 0 ? 'ИТОГО' : '';
           if (i === 0) {
             td.style.position = 'sticky';
             td.style.left = '0';
             td.style.zIndex = '15';
+            td.classList.add('matrix-sortable');
+            td.textContent = formatSortLabel('ИТОГО', 'cols', 'total', 'total');
+            if (isSortActive('cols', 'total', 'total')) td.classList.add('matrix-sort-active');
+            td.title = 'Сортировка столбцов по сумме коллизий · Клик: А→Я → Я→А → сброс';
+            td.onclick = (e) => {
+              e.stopPropagation();
+              cycleMatrixSort('cols', 'total', 'total');
+            };
+          } else {
+            td.textContent = '';
           }
           grandTr.appendChild(td);
         });
@@ -1583,8 +1993,11 @@
       const mirrorNote = mirrorMode
         ? ` &nbsp;|&nbsp; <span class="text-emerald-600">Отзеркаливание: ${rawClashes.length} → ${clashes.length}</span>`
         : '';
+      const sortNote = (matrixSort.rows.key || matrixSort.cols.key)
+        ? ' &nbsp;|&nbsp; <span class="text-indigo-600">Сортировка активна</span>'
+        : '';
       document.getElementById('stats').innerHTML =
-        `Всего: <strong>${total}</strong> коллизий${mirrorNote} &nbsp;|&nbsp; Строки: ${rowStats} &nbsp;|&nbsp; Столбцы: ${colStats}`;
+        `Всего: <strong>${total}</strong> коллизий${mirrorNote}${sortNote} &nbsp;|&nbsp; Строки: ${rowStats} &nbsp;|&nbsp; Столбцы: ${colStats}`;
     }
 
     // Lightweight cell info (optional, can be removed)
@@ -1838,6 +2251,8 @@
 
       rawClashes = parsed;
       mirrorMode = false;
+      resetMatrixSort();
+      lastMatrixData = null;
       rebuildClashes();
       
       if (!clashes.length) {
@@ -1868,9 +2283,22 @@
       clearPropertyFilterRows();
 
       setTimeout(() => {
+        applyLoadedReportSettings();
+      }, 100);
+    }
+
+    function applyLoadedReportSettings() {
+      const activeProfile = activeProfileId
+        ? sessionProfiles.find(p => p.id === activeProfileId)
+        : null;
+
+      if (activeProfile) {
+        applyProfileState(activeProfile.state);
+      } else {
         applyDefaultHierarchies();
         buildMatrix();
-      }, 100);
+      }
+      renderProfileSelector();
     }
 
     // Make sure to call this also from checkbox onchange for test filters (already wired in render)
@@ -1926,6 +2354,8 @@
 
       rawClashes = demoClashes;
       mirrorMode = false;
+      resetMatrixSort();
+      lastMatrixData = null;
       rebuildClashes();
 
       const props = getAllProperties(clashes);
@@ -1951,14 +2381,324 @@
       clearPropertyFilterRows();
 
       setTimeout(() => {
-        applyDefaultHierarchies();
-        buildMatrix();
+        applyLoadedReportSettings();
       }, 80);
     }
+
+    // ==================== SESSION PROFILES ====================
+
+    function captureCurrentProfileState() {
+      updatePropertyFiltersFromDOM();
+      const search = document.getElementById('global-search');
+      return {
+        rowHierarchy: [...rowHierarchy],
+        colHierarchy: [...colHierarchy],
+        activeTestFilters: [...activeTestFilters],
+        activeStatusFilters: [...activeStatusFilters],
+        propertyFilters: propertyFilters.map(({ prop, side, operator, value }) => ({
+          prop,
+          side: side || 'both',
+          operator: operator || 'contains',
+          value: value || ''
+        })),
+        globalSearch: search ? search.value : '',
+        mirrorMode
+      };
+    }
+
+    function sanitizeProfileState(state) {
+      if (!state) return null;
+
+      const row = (state.rowHierarchy || []).filter(k =>
+        k === 'testName' || availableProps1.some(p => p.key === k)
+      );
+      const col = (state.colHierarchy || []).filter(k =>
+        k === 'testName' || availableProps2.some(p => p.key === k)
+      );
+
+      let tests = (state.activeTestFilters || []).filter(t => uniqueTests.includes(t));
+      if (!tests.length && uniqueTests.length) tests = [...uniqueTests];
+
+      let statuses = (state.activeStatusFilters || []).filter(s => uniqueStatuses.includes(s));
+      if (!statuses.length && uniqueStatuses.length) statuses = [...uniqueStatuses];
+
+      const filters = (state.propertyFilters || []).map(f => ({
+        prop: f.prop || '',
+        side: f.side || 'both',
+        operator: f.operator || 'contains',
+        value: f.value || ''
+      })).filter(f => f.prop);
+
+      return {
+        rowHierarchy: row,
+        colHierarchy: col,
+        activeTestFilters: tests,
+        activeStatusFilters: statuses,
+        propertyFilters: filters,
+        globalSearch: state.globalSearch || '',
+        mirrorMode: !!state.mirrorMode
+      };
+    }
+
+    function applyProfileState(state) {
+      if (!rawClashes.length) {
+        alert('Сначала загрузите отчёт');
+        return false;
+      }
+
+      const sanitized = sanitizeProfileState(state);
+      if (!sanitized) return false;
+
+      suppressProfileDeselect = true;
+      try {
+        rowHierarchy = [...sanitized.rowHierarchy];
+        colHierarchy = [...sanitized.colHierarchy];
+        activeTestFilters = [...sanitized.activeTestFilters];
+        activeStatusFilters = [...sanitized.activeStatusFilters];
+
+        const search = document.getElementById('global-search');
+        if (search) search.value = sanitized.globalSearch;
+
+        mirrorMode = sanitized.mirrorMode;
+        rebuildClashes();
+        updateClashCountDisplay();
+        updateMirrorModeUI();
+
+        restorePropertyFilterRows(sanitized.propertyFilters);
+        renderHierarchyUI();
+        renderTestFilters();
+        renderStatusFilters();
+        buildMatrix();
+      } finally {
+        suppressProfileDeselect = false;
+      }
+      return true;
+    }
+
+    function renderProfileSelector() {
+      const select = document.getElementById('profile-select');
+      if (!select) return;
+
+      const prev = activeProfileId || select.value;
+      select.innerHTML = '<option value="">Профиль…</option>';
+
+      sessionProfiles
+        .slice()
+        .sort((a, b) => a.name.localeCompare(b.name, 'ru'))
+        .forEach(profile => {
+          const opt = document.createElement('option');
+          opt.value = profile.id;
+          opt.textContent = profile.name;
+          select.appendChild(opt);
+        });
+
+      if (prev && sessionProfiles.some(p => p.id === prev)) {
+        select.value = prev;
+        activeProfileId = prev;
+      } else {
+        select.value = '';
+        activeProfileId = null;
+      }
+
+      updateProfileControlsState();
+    }
+
+    function updateProfileControlsState() {
+      const hasData = rawClashes.length > 0;
+      const select = document.getElementById('profile-select');
+      const saveBtn = document.getElementById('profile-save-btn');
+      const deleteBtn = document.getElementById('profile-delete-btn');
+
+      if (select) select.disabled = !hasData;
+      if (saveBtn) saveBtn.disabled = !hasData;
+      if (deleteBtn) deleteBtn.disabled = !hasData || !activeProfileId;
+    }
+
+    function onProfileSelectChange(profileId) {
+      if (!profileId) {
+        activeProfileId = null;
+        updateProfileControlsState();
+        return;
+      }
+
+      const profile = sessionProfiles.find(p => p.id === profileId);
+      if (!profile) {
+        activeProfileId = null;
+        renderProfileSelector();
+        return;
+      }
+
+      activeProfileId = profileId;
+      applyProfileState(profile.state);
+      updateProfileControlsState();
+    }
+
+    function saveProfilePrompt() {
+      if (!rawClashes.length) {
+        alert('Сначала загрузите отчёт');
+        return;
+      }
+
+      const current = sessionProfiles.find(p => p.id === activeProfileId);
+      const name = prompt('Название профиля настроек:', current ? current.name : '');
+      if (!name || !name.trim()) return;
+
+      saveProfile(name.trim());
+    }
+
+    function saveProfile(name) {
+      const state = captureCurrentProfileState();
+      const now = new Date().toISOString();
+      const existingByName = sessionProfiles.find(p => p.name === name);
+      const existingById = activeProfileId ? sessionProfiles.find(p => p.id === activeProfileId) : null;
+
+      if (existingByName && existingByName.id !== activeProfileId) {
+        if (!confirm(`Профиль «${name}» уже существует. Перезаписать?`)) return;
+        existingByName.state = state;
+        existingByName.updatedAt = now;
+        activeProfileId = existingByName.id;
+      } else if (existingById && existingById.name === name) {
+        existingById.state = state;
+        existingById.updatedAt = now;
+        activeProfileId = existingById.id;
+      } else if (existingById) {
+        existingById.name = name;
+        existingById.state = state;
+        existingById.updatedAt = now;
+        activeProfileId = existingById.id;
+      } else {
+        const id = 'prof-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
+        sessionProfiles.push({ id, name, createdAt: now, updatedAt: now, state });
+        activeProfileId = id;
+      }
+
+      renderProfileSelector();
+    }
+
+    function deleteSelectedProfile() {
+      if (!activeProfileId) return;
+
+      const profile = sessionProfiles.find(p => p.id === activeProfileId);
+      if (!profile) return;
+
+      if (!confirm(`Удалить профиль «${profile.name}»?`)) return;
+
+      sessionProfiles = sessionProfiles.filter(p => p.id !== activeProfileId);
+      activeProfileId = null;
+      renderProfileSelector();
+    }
+
+    function initDefaultProfiles() {
+      sessionProfiles = normalizeImportedProfiles(DEFAULT_PROFILES);
+    }
+
+    function normalizeImportedProfiles(data) {
+      const list = Array.isArray(data)
+        ? data
+        : (Array.isArray(data?.profiles) ? data.profiles : []);
+
+      return list
+        .filter(p => p && typeof p.name === 'string' && p.state)
+        .map(p => ({
+          id: p.id || ('prof-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7)),
+          name: p.name.trim(),
+          createdAt: p.createdAt || new Date().toISOString(),
+          updatedAt: p.updatedAt || new Date().toISOString(),
+          state: {
+            rowHierarchy: Array.isArray(p.state.rowHierarchy) ? p.state.rowHierarchy : [],
+            colHierarchy: Array.isArray(p.state.colHierarchy) ? p.state.colHierarchy : [],
+            activeTestFilters: Array.isArray(p.state.activeTestFilters) ? p.state.activeTestFilters : [],
+            activeStatusFilters: Array.isArray(p.state.activeStatusFilters) ? p.state.activeStatusFilters : [],
+            propertyFilters: Array.isArray(p.state.propertyFilters) ? p.state.propertyFilters : [],
+            globalSearch: p.state.globalSearch || '',
+            mirrorMode: !!p.state.mirrorMode
+          }
+        }))
+        .filter(p => p.name);
+    }
+
+    function exportProfiles() {
+      if (!sessionProfiles.length) {
+        alert('Нет сохранённых профилей для экспорта');
+        return;
+      }
+
+      const payload = {
+        format: PROFILE_FORMAT,
+        version: PROFILE_VERSION,
+        exportedAt: new Date().toISOString(),
+        profiles: sessionProfiles
+      };
+
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'clash-matrix-profiles.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function triggerProfileImport() {
+      const input = document.getElementById('profile-import-input');
+      if (input) input.click();
+    }
+
+    function handleProfileImport(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const input = event.target;
+      const reader = new FileReader();
+      reader.onload = function(ev) {
+        try {
+          const data = JSON.parse(ev.target.result);
+          const imported = normalizeImportedProfiles(data);
+
+          if (!imported.length) {
+            alert('В файле не найдено корректных профилей');
+            return;
+          }
+
+          let added = 0;
+          let replaced = 0;
+
+          imported.forEach(item => {
+            const byName = sessionProfiles.find(p => p.name === item.name);
+            if (byName) {
+              if (!confirm(`Профиль «${item.name}» уже есть в сессии. Заменить импортированным?`)) {
+                item.name = item.name + ' (импорт)';
+                sessionProfiles.push(item);
+                added++;
+              } else {
+                byName.state = item.state;
+                byName.updatedAt = item.updatedAt;
+                replaced++;
+              }
+            } else {
+              sessionProfiles.push(item);
+              added++;
+            }
+          });
+
+          renderProfileSelector();
+          alert(`Импорт завершён: добавлено ${added}, заменено ${replaced}`);
+        } catch (err) {
+          alert('Ошибка чтения файла профилей: ' + err.message);
+        } finally {
+          input.value = '';
+        }
+      };
+      reader.readAsText(file, 'UTF-8');
+    }
+
+    // ==================== END SESSION PROFILES ====================
 
     function resetAll() {
       clashes = [];
       rawClashes = [];
+      resetMatrixSort();
+      lastMatrixData = null;
       mirrorMode = false;
       rowHierarchy = [];
       colHierarchy = [];
@@ -2003,6 +2743,9 @@
       if (rowHierarchyEl) rowHierarchyEl.innerHTML = '';
       const colHierarchyEl = document.getElementById('col-hierarchy');
       if (colHierarchyEl) colHierarchyEl.innerHTML = '';
+
+      activeProfileId = null;
+      renderProfileSelector();
     }
 
     // Keyboard support
@@ -2020,6 +2763,8 @@
       tailwindInit();
       initKeyboard();
       initFullscreenSupport();
+      initDefaultProfiles();
+      renderProfileSelector();
 
       // Auto hint if file exists in same folder context
       console.log('%c[Navisworks Matrix] HTML сервис готов. Загрузите отчёт.', 'color:#64748b');
