@@ -97,15 +97,6 @@
       max-height: calc(100vh - 70px) !important;
       height: calc(100vh - 70px);
       overflow: auto;
-      padding: 10px !important;
-    }
-
-    :fullscreen .matrix-table th,
-    :fullscreen .matrix-table td,
-    .matrix-fullscreen-fallback .matrix-table th,
-    .matrix-fullscreen-fallback .matrix-table td {
-      padding: 6px 9px;
-      font-size: 13.5px;
     }
 
     .matrix-fullscreen-fallback {
@@ -202,6 +193,7 @@
     #matrix-container {
       overflow: auto;
       overscroll-behavior: contain;
+      scrollbar-gutter: stable;
     }
 
     .matrix-sticky-col {
@@ -2198,6 +2190,28 @@
       return result;
     }
 
+    function clearStickyMatrixInlineStyles(table, numRowLvls) {
+      if (!table) return;
+
+      const resetCell = (cell) => {
+        cell.style.position = '';
+        cell.style.left = '';
+        cell.style.top = '';
+        cell.style.zIndex = '';
+        cell.style.minWidth = '';
+        cell.style.width = '';
+        cell.style.maxWidth = '';
+        cell.style.boxSizing = '';
+      };
+
+      table.querySelectorAll('thead th').forEach(resetCell);
+      if (numRowLvls > 0) {
+        table.querySelectorAll('tbody tr').forEach(row => {
+          Array.from(row.children).slice(0, numRowLvls).forEach(resetCell);
+        });
+      }
+    }
+
     function syncStickyMatrixLayout(table, numRowLvls, hasTwoColHeaderRows) {
       if (!table) return;
 
@@ -2209,13 +2223,6 @@
       container.scrollTop = 0;
       container.scrollLeft = 0;
 
-      const containerRect = container.getBoundingClientRect();
-      const padLeft = parseFloat(getComputedStyle(container).paddingLeft) || 0;
-
-      const measureLeft = (cell) => Math.round(
-        cell.getBoundingClientRect().left - containerRect.left - padLeft
-      );
-
       const thead = table.querySelector('thead');
       const tr1 = thead?.querySelector('tr:first-child');
       const tr2 = hasTwoColHeaderRows ? thead?.querySelector('tr:nth-child(2)') : null;
@@ -2225,13 +2232,21 @@
         return;
       }
 
+      clearStickyMatrixInlineStyles(table, numRowLvls);
+      void container.offsetHeight;
+
       const row1Top = 0;
       const row2Top = Math.round(tr1.getBoundingClientRect().height);
 
       if (numRowLvls > 0) {
         const headerCells = Array.from(tr1.children).slice(0, numRowLvls);
         const widths = headerCells.map(cell => Math.round(cell.getBoundingClientRect().width));
-        const lefts = headerCells.map(cell => measureLeft(cell));
+        const lefts = [];
+        let cumulativeLeft = 0;
+        widths.forEach((width) => {
+          lefts.push(cumulativeLeft);
+          cumulativeLeft += width;
+        });
 
         const applyRowSticky = (cell, index, baseZ, isCornerHeader) => {
           cell.classList.add('matrix-sticky-col');
@@ -2284,12 +2299,40 @@
       container.scrollLeft = savedScrollLeft;
     }
 
+    let matrixContainerResizeObserver = null;
+
     function scheduleStickyMatrixLayout(table, numRowLvls, hasTwoColHeaderRows) {
+      const run = () => syncStickyMatrixLayout(table, numRowLvls, hasTwoColHeaderRows);
       requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          syncStickyMatrixLayout(table, numRowLvls, hasTwoColHeaderRows);
-        });
+        requestAnimationFrame(run);
       });
+
+      const container = document.getElementById('matrix-container');
+      if (!container || typeof ResizeObserver === 'undefined') return;
+
+      if (matrixContainerResizeObserver) {
+        matrixContainerResizeObserver.disconnect();
+      }
+
+      let resizeTimer = null;
+      matrixContainerResizeObserver = new ResizeObserver(() => {
+        if (!table.isConnected) return;
+        if (resizeTimer) clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => run(), 80);
+      });
+      matrixContainerResizeObserver.observe(container);
+    }
+
+    function refreshStickyMatrixLayout() {
+      if (!lastMatrixData) return;
+
+      const container = document.getElementById('matrix-container');
+      const table = container?.querySelector('.matrix-table');
+      if (!table) return;
+
+      const numRowLvls = lastMatrixData.rowLevels?.length || 0;
+      const hasTwoColHeaderRows = (lastMatrixData.colLevels?.length || 0) >= 2;
+      scheduleStickyMatrixLayout(table, numRowLvls, hasTwoColHeaderRows);
     }
 
     function labelFor(key) {
@@ -2630,7 +2673,8 @@
       if (!isCurrentlyFullscreen) {
         // Try native Fullscreen API first
         if (card.requestFullscreen) {
-          card.requestFullscreen().catch(() => fallbackCssFullscreen(card));
+          card.requestFullscreen()
+            .catch(() => fallbackCssFullscreen(card));
         } else if (card.webkitRequestFullscreen) {
           card.webkitRequestFullscreen();
         } else {
@@ -2665,6 +2709,8 @@
         hint.onclick = () => exitFallbackFullscreen(card);
         document.body.appendChild(hint);
       }
+
+      onMatrixFullscreenChange();
     }
 
     function exitFallbackFullscreen(card) {
@@ -2674,7 +2720,22 @@
       const hint = document.getElementById('fs-exit-hint');
       if (hint) hint.remove();
 
+      onMatrixFullscreenChange();
+    }
+
+    let matrixFsLayoutTimer = null;
+
+    function onMatrixFullscreenChange() {
       updateFullscreenButton();
+      if (matrixFsLayoutTimer) clearTimeout(matrixFsLayoutTimer);
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          matrixFsLayoutTimer = setTimeout(() => {
+            matrixFsLayoutTimer = null;
+            refreshStickyMatrixLayout();
+          }, 120);
+        });
+      });
     }
 
     function updateFullscreenButton() {
@@ -2701,8 +2762,8 @@
 
     function initFullscreenSupport() {
       // Native fullscreen change events
-      document.addEventListener('fullscreenchange', updateFullscreenButton);
-      document.addEventListener('webkitfullscreenchange', updateFullscreenButton);
+      document.addEventListener('fullscreenchange', onMatrixFullscreenChange);
+      document.addEventListener('webkitfullscreenchange', onMatrixFullscreenChange);
 
       // Keyboard shortcut: F key toggles fullscreen when matrix is visible
       document.addEventListener('keydown', function(e) {
