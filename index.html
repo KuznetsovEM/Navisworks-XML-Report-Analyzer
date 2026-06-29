@@ -358,10 +358,14 @@
               <i class="fa-solid fa-play fa-rotate-270"></i>
               <span>Треугольная матрица</span>
             </button>
-            <button onclick="exportCSV()" class="px-3 py-1.5 text-xs border border-slate-300 hover:bg-slate-50 rounded-lg flex items-center gap-x-1.5">
-              <i class="fa-solid fa-download"></i>
-              <span>CSV</span>
-            </button>
+            <div class="inline-flex items-stretch rounded-md border border-slate-300 bg-white overflow-hidden text-[11px]" role="group" aria-label="Экспорт матрицы">
+              <button type="button" onclick="exportCSV()"
+                      class="px-2 py-1 hover:bg-slate-50 border-r border-slate-300 transition-colors"
+                      title="Экспорт матрицы в CSV">CSV</button>
+              <button type="button" onclick="exportHTML()"
+                      class="px-2 py-1 hover:bg-slate-50 transition-colors"
+                      title="Экспорт матрицы в HTML">HTML</button>
+            </div>
           </div>
         </div>
 
@@ -850,6 +854,8 @@
         savedColHierarchyBeforeTriangular = [...colHierarchy];
         triangularMode = true;
         syncColHierarchyFromRows();
+        clearPropertyFilterRows();
+        propertyFilters = [];
       } else {
         exitTriangularMode(true);
       }
@@ -2212,6 +2218,47 @@
       }
     }
 
+    function measureStickyRowTops(container, tr1, tr2) {
+      const containerRect = container.getBoundingClientRect();
+      const padTop = parseFloat(getComputedStyle(container).paddingTop) || 0;
+      const originY = containerRect.top + padTop;
+
+      const toTop = (row) => {
+        if (!row) return 0;
+        const top = row.getBoundingClientRect().top - originY;
+        return Math.max(0, top);
+      };
+
+      return {
+        row1Top: toTop(tr1),
+        row2Top: toTop(tr2)
+      };
+    }
+
+    function applyStickyHeaderTops(tr1, tr2, numRowLvls, row1Top, row2Top) {
+      const row1Px = row1Top + 'px';
+      const row2Px = row2Top + 'px';
+
+      if (numRowLvls > 0) {
+        Array.from(tr1.children).slice(0, numRowLvls).forEach(cell => {
+          cell.style.top = row1Px;
+        });
+      }
+
+      Array.from(tr1.children).forEach((th, idx) => {
+        th.style.top = row1Px;
+        if (idx < numRowLvls) {
+          th.style.zIndex = String(50 + idx);
+        }
+      });
+
+      if (tr2 && tr2.children.length) {
+        Array.from(tr2.children).forEach(th => {
+          th.style.top = row2Px;
+        });
+      }
+    }
+
     function syncStickyMatrixLayout(table, numRowLvls, hasTwoColHeaderRows) {
       if (!table) return;
 
@@ -2235,9 +2282,6 @@
       clearStickyMatrixInlineStyles(table, numRowLvls);
       void container.offsetHeight;
 
-      const row1Top = 0;
-      const row2Top = Math.round(tr1.getBoundingClientRect().height);
-
       if (numRowLvls > 0) {
         const headerCells = Array.from(tr1.children).slice(0, numRowLvls);
         const widths = headerCells.map(cell => Math.round(cell.getBoundingClientRect().width));
@@ -2258,11 +2302,7 @@
           cell.style.width = widths[index] + 'px';
           cell.style.maxWidth = widths[index] + 'px';
           cell.style.boxSizing = 'border-box';
-          if (isCornerHeader) {
-            cell.style.top = row1Top + 'px';
-          } else {
-            cell.style.top = '';
-          }
+          cell.style.top = '';
         };
 
         headerCells.forEach((cell, i) => applyRowSticky(cell, i, 30, true));
@@ -2273,16 +2313,13 @@
       }
 
       Array.from(tr1.children).forEach((th, idx) => {
+        th.classList.add('matrix-sticky-header');
+        th.style.position = 'sticky';
+        th.style.top = '';
         if (idx < numRowLvls) {
-          th.classList.add('matrix-sticky-header');
-          th.style.position = 'sticky';
-          th.style.top = row1Top + 'px';
           th.style.zIndex = String(50 + idx);
           return;
         }
-        th.classList.add('matrix-sticky-header');
-        th.style.position = 'sticky';
-        th.style.top = row1Top + 'px';
         th.style.zIndex = '22';
       });
 
@@ -2290,10 +2327,15 @@
         Array.from(tr2.children).forEach(th => {
           th.classList.add('matrix-sticky-header');
           th.style.position = 'sticky';
-          th.style.top = row2Top + 'px';
+          th.style.top = '';
           th.style.zIndex = '20';
         });
       }
+
+      void container.offsetHeight;
+
+      const { row1Top, row2Top } = measureStickyRowTops(container, tr1, tr2);
+      applyStickyHeaderTops(tr1, tr2, numRowLvls, row1Top, row2Top);
 
       container.scrollTop = savedScrollTop;
       container.scrollLeft = savedScrollLeft;
@@ -2784,6 +2826,371 @@
 
     function labelForJS(key) {
       return labelFor(key);
+    }
+
+    const EXPORT_FILTER_OP_LABELS = {
+      'contains': 'содержит',
+      'not-contains': 'не содержит',
+      'equals': 'равно',
+      'not-equals': 'не равно',
+      'starts-with': 'начинается с'
+    };
+
+    const EXPORT_FILTER_SIDE_LABELS = {
+      both: 'оба элемента',
+      item1: 'Элемент 1',
+      item2: 'Элемент 2'
+    };
+
+    function escapeHtml(text) {
+      return String(text ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function describeExportFilterList(allItems, activeItems, noneLabel, allLabel) {
+      if (!allItems.length) return '—';
+      if (allItems.length === 1) return escapeHtml(allItems[0]);
+      if (!activeItems.length) return noneLabel;
+      if (activeItems.length >= allItems.length) return allLabel;
+      return activeItems.map(escapeHtml).join(', ');
+    }
+
+    function getExportColPaths() {
+      if (!lastMatrixData) return [];
+      const { colGroups, colLevels } = lastMatrixData;
+      return sortMatrixPaths(getLeafPaths(colGroups, colLevels.length));
+    }
+
+    function describeMatrixSortSide(cfg, rowLevels) {
+      if (!cfg?.key || !cfg.direction) return 'по умолчанию';
+      const dir = cfg.direction === 'desc' ? 'убывание' : 'возрастание';
+      if (cfg.mode === 'alpha' && cfg.level != null) {
+        const lvl = rowLevels[cfg.level];
+        return `по уровню «${escapeHtml(labelFor(lvl || ''))}» (${dir})`;
+      }
+      if (cfg.mode === 'total') return `по столбцу «Итого» (${dir})`;
+      if (cfg.mode === 'column' && cfg.colIndex != null) {
+        const path = getExportColPaths()[cfg.colIndex] || [];
+        const label = path.length ? path.join(' > ') : `столбец ${cfg.colIndex + 1}`;
+        return `по столбцу «${escapeHtml(label)}» (${dir})`;
+      }
+      return `активна (${dir})`;
+    }
+
+    function buildExportSettingsHtml() {
+      updatePropertyFiltersFromDOM();
+      const filtered = applyAllFilters(clashes);
+      const fileName = document.getElementById('file-name')?.textContent || 'Отчёт не загружен';
+      const matrixTitle = document.getElementById('matrix-title')?.textContent || '';
+      const exportedAt = new Date().toLocaleString('ru-RU');
+      const searchInput = document.getElementById('global-search');
+      const searchValue = searchInput ? searchInput.value.trim() : '';
+
+      const rowLevels = lastMatrixData?.rowLevels || rowHierarchy;
+
+      const propertyFilterLines = propertyFilters
+        .filter(f => f.prop && f.value)
+        .map(f => {
+          const op = EXPORT_FILTER_OP_LABELS[f.operator] || f.operator;
+          const side = EXPORT_FILTER_SIDE_LABELS[f.side || 'both'] || f.side;
+          return `${escapeHtml(f.prop)} (${side}) ${op} «${escapeHtml(f.value)}»`;
+        });
+
+      const settings = [
+        ['Дата экспорта', exportedAt],
+        ['Исходный отчёт', fileName],
+        ['Заголовок матрицы', matrixTitle || '—'],
+        ['Всего коллизий в отчёте', String(clashes.length)],
+        ['После фильтров', String(filtered.length)],
+        ['Учтено в матрице', String(lastMatrixData?.total ?? 0)],
+        ['Отзеркаливание', mirrorMode ? `включено (${rawClashes.length} → ${clashes.length})` : 'выключено'],
+        ['Треугольная матрица', triangularMode ? 'включена (верхний △ скрыт, диагональ ÷2)' : 'выключена'],
+        ['Сортировка строк', describeMatrixSortSide(matrixSort.rows, rowLevels)],
+        ['Фильтр по проверке', describeExportFilterList(uniqueTests, activeTestFilters, 'ничего не выбрано', 'все проверки')],
+        ['Фильтр по статусу', describeExportFilterList(uniqueStatuses, activeStatusFilters, 'ничего не выбрано', 'все статусы')],
+        ['Глобальный поиск', searchValue ? `«${escapeHtml(searchValue)}»` : 'не задан'],
+        ['Доп. фильтры', propertyFilterLines.length ? propertyFilterLines.join('<br>') : 'нет']
+      ];
+
+      const rows = settings.map(([label, value]) => `
+        <tr>
+          <th>${escapeHtml(label)}</th>
+          <td>${value}</td>
+        </tr>
+      `).join('');
+
+      return `
+        <section class="export-settings">
+          <h2>Настройки отчёта</h2>
+          <table class="settings-table">
+            <tbody>${rows}</tbody>
+          </table>
+        </section>
+      `;
+    }
+
+    function cloneMatrixTableForExport() {
+      const table = document.querySelector('#matrix-container .matrix-table');
+      if (!table) return '';
+
+      const clone = table.cloneNode(true);
+      clone.removeAttribute('id');
+
+      clone.querySelectorAll('[onclick]').forEach(el => el.removeAttribute('onclick'));
+      clone.querySelectorAll('.matrix-sortable').forEach(el => {
+        el.classList.remove('matrix-sortable', 'matrix-sort-active');
+        el.removeAttribute('title');
+      });
+
+      return clone.outerHTML;
+    }
+
+    function getExportMatrixStyles() {
+      return `
+        :root { color-scheme: light; }
+        * { box-sizing: border-box; }
+        body {
+          margin: 0;
+          padding: 24px;
+          font-family: Inter, system-ui, -apple-system, Segoe UI, sans-serif;
+          background: #f8fafc;
+          color: #1e293b;
+          line-height: 1.45;
+        }
+        .export-wrap { max-width: 100%; margin: 0 auto; }
+        .export-header {
+          margin-bottom: 20px;
+          padding: 18px 20px;
+          background: #fff;
+          border: 1px solid #e2e8f0;
+          border-radius: 14px;
+        }
+        .export-header h1 {
+          margin: 0 0 6px;
+          font-size: 1.35rem;
+          font-weight: 600;
+        }
+        .export-header p {
+          margin: 0;
+          font-size: 0.85rem;
+          color: #64748b;
+        }
+        .export-settings {
+          margin-top: 20px;
+          padding: 16px 20px;
+          background: #fff;
+          border: 1px solid #e2e8f0;
+          border-radius: 14px;
+        }
+        .export-settings h2,
+        .export-matrix h2 {
+          margin: 0 0 12px;
+          font-size: 1rem;
+          font-weight: 600;
+        }
+        .settings-table {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 0.85rem;
+        }
+        .settings-table th,
+        .settings-table td {
+          border: 1px solid #e2e8f0;
+          padding: 8px 10px;
+          text-align: left;
+          vertical-align: top;
+        }
+        .settings-table th {
+          width: 34%;
+          background: #f8fafc;
+          font-weight: 600;
+          color: #334155;
+        }
+        .export-matrix {
+          margin-bottom: 0;
+          padding: 16px 20px 20px;
+          background: #fff;
+          border: 1px solid #e2e8f0;
+          border-radius: 14px;
+        }
+        .matrix-scroll {
+          overflow: auto;
+          max-width: 100%;
+          border: 1px solid #cbd5e1;
+          border-radius: 10px;
+          background: #fff;
+        }
+        .matrix-table {
+          border-collapse: collapse;
+          min-width: 100%;
+        }
+        .matrix-table th,
+        .matrix-table td {
+          border: 1px solid #cbd5e1;
+          padding: 8px 10px;
+          text-align: center;
+          vertical-align: middle;
+          font-size: 13px;
+        }
+        .matrix-table th {
+          background: #f1e7ff;
+          font-weight: 600;
+        }
+        .matrix-cell-diagonal {
+          background-color: #e2e8f0 !important;
+          color: #334155;
+        }
+        .matrix-cell-triangular-hidden {
+          background-color: #f8fafc !important;
+          color: transparent;
+        }
+        .matrix-col-header-rotated {
+          height: 176px;
+          min-width: 26px;
+          padding: 0 4px;
+          line-height: 176px;
+          vertical-align: middle;
+          text-align: center;
+          overflow: visible;
+        }
+        .matrix-col-header-rotated .matrix-col-header-text {
+          display: inline-block;
+          max-height: 168px;
+          writing-mode: vertical-rl;
+          text-orientation: mixed;
+          white-space: normal;
+          overflow-wrap: anywhere;
+          word-break: break-word;
+          line-height: 1.15;
+          text-align: center;
+          transform: rotate(180deg);
+          transform-origin: center center;
+          vertical-align: middle;
+        }
+        .bg-blue-100 { background-color: #dbeafe !important; }
+        .bg-blue-50 { background-color: #eff6ff !important; }
+        .bg-red-100 { background-color: #fee2e2 !important; }
+        .bg-red-50 { background-color: #fef2f2 !important; }
+        .bg-slate-200 { background-color: #e2e8f0 !important; }
+        .bg-slate-100 { background-color: #f1f5f9 !important; }
+        .bg-amber-50 { background-color: #fffbeb !important; }
+        .bg-white { background-color: #fff !important; }
+        .bg-violet-100 { background-color: #ede9fe !important; }
+        .bg-violet-50 { background-color: #f5f3ff !important; }
+        .text-slate-300 { color: #cbd5e1 !important; }
+        .font-semibold { font-weight: 600; }
+        .font-medium { font-weight: 500; }
+        .font-bold { font-weight: 700; }
+        .text-left { text-align: left !important; }
+        .text-center { text-align: center !important; }
+        .text-xs { font-size: 0.75rem; }
+        .text-sm { font-size: 0.875rem; }
+        .leading-tight { line-height: 1.25; }
+        .border { border-width: 1px; }
+        .export-footer {
+          margin-top: 16px;
+          font-size: 0.75rem;
+          color: #94a3b8;
+          text-align: center;
+        }
+        @media print {
+          body { background: #fff; padding: 0; }
+          .export-header,
+          .export-settings,
+          .export-matrix {
+            border: none;
+            border-radius: 0;
+            padding: 0 0 12px;
+          }
+          .matrix-scroll { border: none; overflow: visible; }
+        }
+      `;
+    }
+
+    function buildExportHtmlDocument(settingsHtml, tableHtml, meta) {
+      const title = `Матрица коллизий — ${meta.fileName}`;
+      return `<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeHtml(title)}</title>
+  <style>${getExportMatrixStyles()}</style>
+</head>
+<body>
+  <div class="export-wrap">
+    <header class="export-header">
+      <h1>Матрица коллизий Navisworks</h1>
+      <p>${escapeHtml(meta.fileName)} · экспорт ${escapeHtml(meta.exportedAt)}</p>
+    </header>
+    <section class="export-matrix">
+      <h2>Матрица</h2>
+      <div class="matrix-scroll">
+        ${tableHtml}
+      </div>
+    </section>
+    ${settingsHtml}
+    <footer class="export-footer">
+      Сгенерировано Clash Matrix Analyzer · файл обрабатывался локально в браузере
+    </footer>
+  </div>
+</body>
+</html>`;
+    }
+
+    function downloadTextFile(filename, content, mimeType) {
+      const blob = new Blob([content], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function getExportBaseFilename() {
+      const baseName = (document.getElementById('file-name')?.textContent || 'clash-matrix')
+        .replace(/[\\/:*?"<>|]/g, '_')
+        .replace(/\s+/g, '_');
+      const rowLevels = lastMatrixData?.rowLevels || rowHierarchy;
+      const colLevels = lastMatrixData?.colLevels || (triangularMode ? rowHierarchy : colHierarchy);
+      const rowPart = rowLevels.length ? rowLevels.map(labelFor).join('-') : 'Итого-rows';
+      const colPart = colLevels.length ? colLevels.map(labelFor).join('-') : 'Итого-cols';
+      return `${baseName}_${rowPart}_x_${colPart}`;
+    }
+
+    function exportHTML() {
+      if (!clashes.length) {
+        alert('Нет данных для экспорта');
+        return;
+      }
+
+      if (!lastMatrixData) {
+        alert('Сначала постройте матрицу');
+        return;
+      }
+
+      const tableHtml = cloneMatrixTableForExport();
+      if (!tableHtml) {
+        alert('Нет таблицы для экспорта. Нажмите «Обновить матрицу».');
+        return;
+      }
+
+      const filtered = applyAllFilters(clashes);
+      if (!filtered.length) {
+        alert('Нет данных после применения фильтров');
+        return;
+      }
+
+      const settingsHtml = buildExportSettingsHtml();
+      const exportedAt = new Date().toLocaleString('ru-RU');
+      const fileName = document.getElementById('file-name')?.textContent || 'clash-matrix';
+      const html = buildExportHtmlDocument(settingsHtml, tableHtml, { fileName, exportedAt });
+
+      downloadTextFile(`${getExportBaseFilename()}.html`, html, 'text/html;charset=utf-8');
     }
 
     function exportCSV() {
@@ -3418,6 +3825,10 @@
     // ==================== END SESSION PROFILES ====================
 
     function resetAll() {
+      if (!confirm('Сбросить всё? Загруженный отчёт, матрица, фильтры и настройки будут очищены.')) {
+        return;
+      }
+
       clashes = [];
       rawClashes = [];
       resetMatrixSort();
