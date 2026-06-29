@@ -37,9 +37,12 @@
     .matrix-table th {
       background: #f1e7ff;
       font-weight: 600;
+    }
+
+    .matrix-sticky-header {
       position: sticky;
-      top: 0;
-      z-index: 10;
+      box-sizing: border-box;
+      background-clip: padding-box;
     }
     
     .matrix-table th.row-header {
@@ -2195,42 +2198,97 @@
       return result;
     }
 
-    function syncStickyRowColumnLayout(table, numRowLvls) {
-      if (!table || !numRowLvls) return;
+    function syncStickyMatrixLayout(table, numRowLvls, hasTwoColHeaderRows) {
+      if (!table) return;
 
       const container = document.getElementById('matrix-container');
-      const headerRow = table.querySelector('thead tr');
-      if (!container || !headerRow) return;
+      if (!container) return;
 
-      const headerCells = Array.from(headerRow.children).slice(0, numRowLvls);
-      if (!headerCells.length) return;
+      const savedScrollTop = container.scrollTop;
+      const savedScrollLeft = container.scrollLeft;
+      container.scrollTop = 0;
+      container.scrollLeft = 0;
 
       const containerRect = container.getBoundingClientRect();
       const padLeft = parseFloat(getComputedStyle(container).paddingLeft) || 0;
 
-      const widths = headerCells.map(cell => Math.round(cell.getBoundingClientRect().width));
-      const lefts = headerCells.map(cell => {
-        const cellRect = cell.getBoundingClientRect();
-        return Math.round(cellRect.left - containerRect.left - padLeft + container.scrollLeft);
+      const measureLeft = (cell) => Math.round(
+        cell.getBoundingClientRect().left - containerRect.left - padLeft
+      );
+
+      const thead = table.querySelector('thead');
+      const tr1 = thead?.querySelector('tr:first-child');
+      const tr2 = hasTwoColHeaderRows ? thead?.querySelector('tr:nth-child(2)') : null;
+      if (!tr1) {
+        container.scrollTop = savedScrollTop;
+        container.scrollLeft = savedScrollLeft;
+        return;
+      }
+
+      const row1Top = 0;
+      const row2Top = Math.round(tr1.getBoundingClientRect().height);
+
+      if (numRowLvls > 0) {
+        const headerCells = Array.from(tr1.children).slice(0, numRowLvls);
+        const widths = headerCells.map(cell => Math.round(cell.getBoundingClientRect().width));
+        const lefts = headerCells.map(cell => measureLeft(cell));
+
+        const applyRowSticky = (cell, index, baseZ, isCornerHeader) => {
+          cell.classList.add('matrix-sticky-col');
+          cell.classList.toggle('matrix-sticky-col-edge', index === numRowLvls - 1);
+          cell.style.position = 'sticky';
+          cell.style.left = lefts[index] + 'px';
+          cell.style.zIndex = String((isCornerHeader ? 50 : baseZ) + index);
+          cell.style.minWidth = widths[index] + 'px';
+          cell.style.width = widths[index] + 'px';
+          cell.style.maxWidth = widths[index] + 'px';
+          cell.style.boxSizing = 'border-box';
+          if (isCornerHeader) {
+            cell.style.top = row1Top + 'px';
+          } else {
+            cell.style.top = '';
+          }
+        };
+
+        headerCells.forEach((cell, i) => applyRowSticky(cell, i, 30, true));
+
+        table.querySelectorAll('tbody tr').forEach(row => {
+          Array.from(row.children).slice(0, numRowLvls).forEach((cell, i) => applyRowSticky(cell, i, 15, false));
+        });
+      }
+
+      Array.from(tr1.children).forEach((th, idx) => {
+        if (idx < numRowLvls) {
+          th.classList.add('matrix-sticky-header');
+          th.style.position = 'sticky';
+          th.style.top = row1Top + 'px';
+          th.style.zIndex = String(50 + idx);
+          return;
+        }
+        th.classList.add('matrix-sticky-header');
+        th.style.position = 'sticky';
+        th.style.top = row1Top + 'px';
+        th.style.zIndex = '22';
       });
 
-      const applySticky = (cell, index, baseZ) => {
-        cell.classList.add('matrix-sticky-col');
-        cell.classList.toggle('matrix-sticky-col-edge', index === numRowLvls - 1);
-        cell.style.position = 'sticky';
-        cell.style.left = lefts[index] + 'px';
-        cell.style.zIndex = String(baseZ + index);
-        cell.style.minWidth = widths[index] + 'px';
-        cell.style.width = widths[index] + 'px';
-        cell.style.maxWidth = widths[index] + 'px';
-        cell.style.boxSizing = 'border-box';
-      };
+      if (tr2 && tr2.children.length) {
+        Array.from(tr2.children).forEach(th => {
+          th.classList.add('matrix-sticky-header');
+          th.style.position = 'sticky';
+          th.style.top = row2Top + 'px';
+          th.style.zIndex = '20';
+        });
+      }
 
-      headerCells.forEach((cell, i) => applySticky(cell, i, 30));
+      container.scrollTop = savedScrollTop;
+      container.scrollLeft = savedScrollLeft;
+    }
 
-      table.querySelectorAll('tbody tr').forEach(row => {
-        const cells = Array.from(row.children).slice(0, numRowLvls);
-        cells.forEach((cell, i) => applySticky(cell, i, 15));
+    function scheduleStickyMatrixLayout(table, numRowLvls, hasTwoColHeaderRows) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          syncStickyMatrixLayout(table, numRowLvls, hasTwoColHeaderRows);
+        });
       });
     }
 
@@ -2325,7 +2383,7 @@
         if (!useTwoColHeaderRows) {
           allColPaths.forEach((path, colIdx) => {
             const th = document.createElement('th');
-            th.className = 'bg-red-100 text-center p-1 text-xs font-semibold border';
+            th.className = 'bg-red-100 text-center p-1 text-xs font-semibold border matrix-col-sticky-header';
             attachSortableHeader(th, {
               side: 'rows',
               key: 'col:' + colIdx,
@@ -2346,7 +2404,7 @@
           g1.forEach((c, k) => {
             const th = document.createElement('th');
             th.colSpan = c;
-            th.className = 'bg-red-100 text-center p-1 text-xs font-semibold border';
+            th.className = 'bg-red-100 text-center p-1 text-xs font-semibold border matrix-col-sticky-header';
             setColHeaderLabel(th, k, colHeaderRotate.level0);
             tr1.appendChild(th);
           });
@@ -2387,13 +2445,10 @@
 
       if (useTwoColHeaderRows) {
         const tr2 = document.createElement('tr');
-        const colHeaderTop = colHeaderRotate.level0 ? '176px' : '26px';
 
         allColPaths.forEach((path, colIdx) => {
           const th = document.createElement('th');
-          th.className = 'bg-red-50 text-center p-0.5 text-[10px] leading-tight border';
-          th.style.top = colHeaderTop;
-          th.style.zIndex = '12';
+          th.className = 'bg-red-50 text-center p-0.5 text-[10px] leading-tight border matrix-col-sticky-header';
           const leafLabel = numColLvls === 2 ? (path[1] || '') : path.slice(1).join(' > ');
           attachSortableHeader(th, {
             side: 'rows',
@@ -2529,11 +2584,7 @@
       table.appendChild(tbody);
       container.appendChild(table);
 
-      if (numRowLvls > 0) {
-        requestAnimationFrame(() => {
-          syncStickyRowColumnLayout(table, numRowLvls);
-        });
-      }
+      scheduleStickyMatrixLayout(table, numRowLvls, useTwoColHeaderRows);
 
       const rowStats = hasRows ? rowLevels.map(labelFor).join(' → ') : 'Итого';
       const colStats = hasCols ? colLevels.map(labelFor).join(' → ') : 'Итого';
