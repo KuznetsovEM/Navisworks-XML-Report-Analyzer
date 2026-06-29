@@ -153,6 +153,63 @@
     .matrix-sort-active {
       box-shadow: inset 0 -2px 0 #6366f1;
     }
+
+    .matrix-cell-diagonal {
+      background-color: #e2e8f0 !important;
+      color: #334155;
+    }
+
+    .matrix-cell-triangular-hidden {
+      background-color: #f8fafc !important;
+      color: transparent;
+    }
+
+    .matrix-col-header-rotated {
+      height: 176px;
+      min-width: 26px;
+      padding: 0 4px;
+      line-height: 176px;
+      vertical-align: middle;
+      text-align: center;
+      overflow: visible;
+    }
+
+    .matrix-col-header-rotated .matrix-col-header-text {
+      display: inline-block;
+      max-height: 168px;
+      writing-mode: vertical-rl;
+      text-orientation: mixed;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      line-height: 1.15;
+      text-align: center;
+      transform: rotate(180deg);
+      transform-origin: center center;
+      vertical-align: middle;
+      font-size: inherit;
+    }
+
+    .matrix-col-rotate-active {
+      background: #fee2e2 !important;
+      border-color: #fca5a5 !important;
+      color: #b91c1c !important;
+    }
+
+    #matrix-container {
+      overflow: auto;
+      overscroll-behavior: contain;
+    }
+
+    .matrix-sticky-col {
+      position: sticky;
+      box-sizing: border-box;
+      background-clip: padding-box;
+    }
+
+    .matrix-sticky-col-edge {
+      box-shadow: 2px 0 4px -2px rgba(15, 23, 42, 0.1);
+    }
   </style>
 </head>
 <body class="bg-slate-50 text-slate-800">
@@ -256,9 +313,9 @@
       <div id="controls" class="hidden mb-4 bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
         <div class="flex flex-wrap gap-6">
           <!-- Row Hierarchy -->
-          <div class="flex-1 min-w-[280px]">
+          <div id="row-hierarchy-section" class="flex-1 min-w-[280px]">
             <div class="flex justify-between items-center mb-1">
-              <label class="block text-xs font-semibold text-blue-700">Иерархия строк (Элемент 1)</label>
+              <label id="row-hierarchy-label" class="block text-xs font-semibold text-blue-700">Иерархия строк (Элемент 1)</label>
               <button onclick="clearRowHierarchy()" class="text-[10px] text-blue-500 hover:underline">очистить</button>
             </div>
             <div id="row-hierarchy" class="flex flex-wrap gap-1 min-h-[26px] mb-1 p-1 border rounded bg-blue-50 text-xs"></div>
@@ -269,7 +326,7 @@
           </div>
 
           <!-- Column Hierarchy -->
-          <div class="flex-1 min-w-[280px]">
+          <div id="col-hierarchy-section" class="flex-1 min-w-[280px]">
             <div class="flex justify-between items-center mb-1">
               <label class="block text-xs font-semibold text-red-700">Иерархия столбцов (Элемент 2)</label>
               <button onclick="clearColHierarchy()" class="text-[10px] text-red-500 hover:underline">очистить</button>
@@ -298,6 +355,13 @@
                     title="Дублировать коллизии с заменой Элемента 1 и Элемента 2 для симметричной матрицы">
               <i class="fa-solid fa-right-left"></i>
               <span>Отзеркаливание</span>
+            </button>
+            <button id="triangular-mode-btn"
+                    onclick="toggleTriangularMode()"
+                    class="px-3 py-1.5 text-xs border border-slate-300 bg-white hover:bg-slate-50 rounded-lg flex items-center gap-x-1.5 transition-colors"
+                    title="Симметричная треугольная матрица: нижний треугольник, диагональ ÷2">
+              <i class="fa-solid fa-play fa-rotate-270"></i>
+              <span>Треугольная матрица</span>
             </button>
             <button onclick="exportCSV()" class="px-3 py-1.5 text-xs border border-slate-300 hover:bg-slate-50 rounded-lg flex items-center gap-x-1.5">
               <i class="fa-solid fa-download"></i>
@@ -388,6 +452,30 @@
 
             <div class="flex items-center gap-x-2">
               <div class="text-xs text-slate-400">Количество пересечений</div>
+              <button id="reset-sort-btn"
+                      type="button"
+                      onclick="resetMatrixSortToDefault()"
+                      class="px-2 py-1 text-xs bg-white hover:bg-slate-100 active:bg-slate-200 border border-slate-300 rounded-lg flex items-center gap-x-1 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      title="Сбросить сортировку строк к порядку по умолчанию">
+                <i class="fa-solid fa-arrow-rotate-left"></i>
+                <span class="hidden sm:inline">Сброс сорт.</span>
+              </button>
+              <button id="col-rotate-l1-btn"
+                      type="button"
+                      onclick="toggleColHeaderRotate(0)"
+                      class="px-2 py-1 text-xs bg-white hover:bg-slate-100 active:bg-slate-200 border border-slate-300 rounded-lg flex items-center gap-x-1 transition-colors"
+                      title="Повернуть названия столбцов 1-го уровня на 90° против часовой">
+                <i class="fa-solid fa-rotate-left"></i>
+                <span class="hidden sm:inline">1 ур.</span>
+              </button>
+              <button id="col-rotate-l2-btn"
+                      type="button"
+                      onclick="toggleColHeaderRotate(1)"
+                      class="px-2 py-1 text-xs bg-white hover:bg-slate-100 active:bg-slate-200 border border-slate-300 rounded-lg flex items-center gap-x-1 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      title="Повернуть названия столбцов 2-го уровня на 90° против часовой">
+                <i class="fa-solid fa-rotate-left"></i>
+                <span class="hidden sm:inline">2 ур.</span>
+              </button>
               <button id="fullscreen-btn"
                       onclick="toggleMatrixFullscreen()"
                       class="px-2.5 py-1 text-xs bg-white hover:bg-slate-100 active:bg-slate-200 border border-slate-300 rounded-lg flex items-center gap-x-1.5 transition-colors"
@@ -423,6 +511,7 @@
       <div id="raw-hint" class="hidden mt-4 text-xs text-slate-500">
         Загружено <span id="clash-count"></span> коллизий.
         <span id="mirror-hint" class="hidden text-emerald-600 font-medium">Режим отзеркаливания: каждая коллизия учтена в обоих направлениях (A↔B).</span>
+        <span id="triangular-hint" class="hidden text-violet-600 font-medium">Треугольная матрица: верхний треугольник скрыт, диагональ ÷2 (серые ячейки).</span>
         Доступные свойства определяются автоматически.
       </div>
     </div>
@@ -453,6 +542,8 @@
     let clashes = [];
     let rawClashes = [];      // исходные данные без отзеркаливания
     let mirrorMode = false;   // режим A↔B: каждая коллизия дублируется с заменой сторон
+    let triangularMode = false; // треугольная матрица: зеркалирование + нижний треугольник
+    let savedColHierarchyBeforeTriangular = null;
     let availableProps1 = [];
     let availableProps2 = [];
     let uniqueTests = [];
@@ -578,6 +669,40 @@
       };
     }
 
+    function isMirrorDataActive() {
+      return mirrorMode || triangularMode;
+    }
+
+    function syncColHierarchyFromRows() {
+      if (triangularMode) {
+        colHierarchy = [...rowHierarchy];
+      }
+    }
+
+    function compareMatrixPaths(rowPath, colPath) {
+      return pathToKey(rowPath).localeCompare(pathToKey(colPath), 'ru');
+    }
+
+    function getTriangularCellDisplay(rawCount, rowPath, colPath) {
+      if (!rawCount) return { count: 0, isDiagonal: false, hidden: false };
+      if (!triangularMode) return { count: rawCount, isDiagonal: false, hidden: false };
+
+      const cmp = compareMatrixPaths(rowPath, colPath);
+      if (cmp < 0) return { count: 0, isDiagonal: false, hidden: true };
+      if (cmp === 0) return { count: Math.round(rawCount / 2), isDiagonal: true, hidden: false };
+      return { count: rawCount, isDiagonal: false, hidden: false };
+    }
+
+    function exitTriangularMode(restoreColHierarchy = true) {
+      if (!triangularMode) return;
+      triangularMode = false;
+      if (restoreColHierarchy && savedColHierarchyBeforeTriangular !== null) {
+        colHierarchy = [...savedColHierarchyBeforeTriangular];
+      }
+      savedColHierarchyBeforeTriangular = null;
+      updateTriangularModeUI();
+    }
+
     function rebuildClashes() {
       if (!rawClashes.length) {
         clashes = [];
@@ -585,7 +710,7 @@
       }
 
       const originals = rawClashes.map((c, i) => cloneClash(c, i + 1));
-      if (!mirrorMode) {
+      if (!isMirrorDataActive()) {
         clashes = originals;
         return;
       }
@@ -603,9 +728,13 @@
         return;
       }
 
-      el.textContent = mirrorMode
-        ? `${rawClashes.length} × 2 = ${clashes.length}`
-        : String(rawClashes.length);
+      if (triangularMode) {
+        el.textContent = `${rawClashes.length} × 2 = ${clashes.length} (треугольная)`;
+      } else if (mirrorMode) {
+        el.textContent = `${rawClashes.length} × 2 = ${clashes.length}`;
+      } else {
+        el.textContent = String(rawClashes.length);
+      }
     }
 
     function updateMirrorModeUI() {
@@ -625,15 +754,72 @@
         if (label) label.textContent = 'Отзеркаливание';
         if (hint) hint.classList.add('hidden');
       }
+
+      btn.disabled = triangularMode;
+      btn.classList.toggle('opacity-50', triangularMode);
+      btn.classList.toggle('cursor-not-allowed', triangularMode);
+    }
+
+    function updatePropertyFilterSideVisibility() {
+      const container = document.getElementById('property-filter-rows');
+      if (!container) return;
+
+      Array.from(container.children).forEach(row => {
+        const sideEl = row.querySelector('.filter-side');
+        if (!sideEl) return;
+
+        if (triangularMode) {
+          sideEl.value = 'both';
+          sideEl.classList.add('hidden');
+        } else {
+          sideEl.classList.remove('hidden');
+        }
+      });
+
+      if (triangularMode) updatePropertyFiltersFromDOM();
+    }
+
+    function updateTriangularModeUI() {
+      const btn = document.getElementById('triangular-mode-btn');
+      const hint = document.getElementById('triangular-hint');
+      const colSection = document.getElementById('col-hierarchy-section');
+      const rowLabel = document.getElementById('row-hierarchy-label');
+      if (!btn) return;
+
+      const label = btn.querySelector('span');
+      if (triangularMode) {
+        btn.classList.add('bg-violet-600', 'text-white', 'border-violet-600', 'hover:bg-violet-700');
+        btn.classList.remove('bg-white', 'hover:bg-slate-50', 'border-slate-300');
+        if (label) label.textContent = 'Треугольная матрица: ВКЛ';
+        if (hint) hint.classList.remove('hidden');
+        if (colSection) colSection.classList.add('hidden');
+        if (rowLabel) rowLabel.textContent = 'Иерархия строк и столбцов';
+      } else {
+        btn.classList.remove('bg-violet-600', 'text-white', 'border-violet-600', 'hover:bg-violet-700');
+        btn.classList.add('bg-white', 'hover:bg-slate-50', 'border-slate-300');
+        if (label) label.textContent = 'Треугольная матрица';
+        if (hint) hint.classList.add('hidden');
+        if (colSection) colSection.classList.remove('hidden');
+        if (rowLabel) rowLabel.textContent = 'Иерархия строк (Элемент 1)';
+      }
+
+      btn.disabled = mirrorMode;
+      btn.classList.toggle('opacity-50', mirrorMode);
+      btn.classList.toggle('cursor-not-allowed', mirrorMode);
+
+      updatePropertyFilterSideVisibility();
+      updateMirrorModeUI();
     }
 
     function refreshPropertiesAndMatrix() {
+      if (triangularMode) syncColHierarchyFromRows();
       const props = getAllProperties(clashes);
       availableProps1 = props.item1;
       availableProps2 = props.item2;
       populatePropertySelectors();
       updateClashCountDisplay();
       updateMirrorModeUI();
+      updateTriangularModeUI();
       buildMatrix();
     }
 
@@ -645,8 +831,36 @@
 
       recordUndoBeforeChange();
       deselectActiveProfile();
+
+      if (!mirrorMode && triangularMode) {
+        exitTriangularMode(true);
+      }
+
       mirrorMode = !mirrorMode;
       rebuildClashes();
+      refreshPropertiesAndMatrix();
+    }
+
+    function toggleTriangularMode() {
+      if (!rawClashes.length) {
+        alert('Сначала загрузите отчёт или демо-данные');
+        return;
+      }
+
+      recordUndoBeforeChange();
+      deselectActiveProfile();
+
+      if (!triangularMode) {
+        if (mirrorMode) mirrorMode = false;
+        savedColHierarchyBeforeTriangular = [...colHierarchy];
+        triangularMode = true;
+        syncColHierarchyFromRows();
+      } else {
+        exitTriangularMode(true);
+      }
+
+      rebuildClashes();
+      renderHierarchyUI();
       refreshPropertiesAndMatrix();
     }
 
@@ -952,6 +1166,8 @@
       const [moved] = hierarchy.splice(fromIndex, 1);
       hierarchy.splice(toIndex, 0, moved);
 
+      if (triangularMode && targetSide === 'row') syncColHierarchyFromRows();
+
       recordUndoBeforeChange();
       deselectActiveProfile();
       resetMatrixSort();
@@ -966,6 +1182,7 @@
         deselectActiveProfile();
         resetMatrixSort();
         rowHierarchy.push(sel.value);
+        if (triangularMode) syncColHierarchyFromRows();
         renderHierarchyUI();
         buildMatrix();
       }
@@ -988,6 +1205,7 @@
       deselectActiveProfile();
       resetMatrixSort();
       rowHierarchy.splice(idx, 1);
+      if (triangularMode) syncColHierarchyFromRows();
       renderHierarchyUI();
       buildMatrix();
     }
@@ -1006,6 +1224,7 @@
       deselectActiveProfile();
       resetMatrixSort();
       rowHierarchy = [];
+      if (triangularMode) syncColHierarchyFromRows();
       renderHierarchyUI();
       buildMatrix();
     }
@@ -1209,13 +1428,18 @@
 
       container.appendChild(row);
       updatePropertyFiltersFromDOM();
+      updatePropertyFilterSideVisibility();
       recordUndoBeforeChange();
       deselectActiveProfile();
     }
 
     function restorePropertyFilterRows(filters) {
       clearPropertyFilterRows();
-      (filters || []).forEach(f => addPropertyFilterRow(f));
+      (filters || []).forEach(f => {
+        const normalized = triangularMode ? { ...f, side: 'both' } : f;
+        addPropertyFilterRow(normalized);
+      });
+      updatePropertyFilterSideVisibility();
     }
 
     function updatePropertyFiltersFromDOM() {
@@ -1406,14 +1630,23 @@
           return;
         }
 
-        if (rowHierarchy.length === 0 && colHierarchy.length === 0) {
+        if (triangularMode) {
+          syncColHierarchyFromRows();
+          if (rowHierarchy.length === 0) {
+            const container = document.getElementById('matrix-container');
+            container.innerHTML = '<div class="p-4 text-amber-600">В режиме треугольной матрицы добавьте хотя бы один уровень в иерархию строк.</div>';
+            return;
+          }
+        } else if (rowHierarchy.length === 0 && colHierarchy.length === 0) {
           const container = document.getElementById('matrix-container');
           container.innerHTML = '<div class="p-4 text-amber-600">Добавьте хотя бы один уровень в иерархию строк или столбцов.</div>';
           return;
         }
 
+        const effectiveColHierarchy = triangularMode ? [...rowHierarchy] : colHierarchy;
+
         // Build hierarchical data
-        const { rowGroups, colGroups, leafMatrix, total } = buildHierarchicalData(filtered, rowHierarchy, colHierarchy);
+        const { rowGroups, colGroups, leafMatrix, total } = buildHierarchicalData(filtered, rowHierarchy, effectiveColHierarchy);
 
         lastMatrixData = {
           rowGroups,
@@ -1421,17 +1654,19 @@
           leafMatrix,
           total,
           rowLevels: [...rowHierarchy],
-          colLevels: [...colHierarchy]
+          colLevels: [...effectiveColHierarchy]
         };
 
         // Render hierarchical table
-        renderHierarchicalMatrix(rowGroups, colGroups, leafMatrix, total, rowHierarchy, colHierarchy);
+        renderHierarchicalMatrix(rowGroups, colGroups, leafMatrix, total, rowHierarchy, effectiveColHierarchy);
 
         // Update title
         const rowDisplay = rowHierarchy.length ? rowHierarchy.map(labelFor).join(' > ') : 'Итого';
-        const colDisplay = colHierarchy.length ? colHierarchy.map(labelFor).join(' > ') : 'Итого';
-        document.getElementById('matrix-title').textContent = 
-          `Rows: ${rowDisplay} × Cols: ${colDisplay}`;
+        const colDisplay = effectiveColHierarchy.length ? effectiveColHierarchy.map(labelFor).join(' > ') : 'Итого';
+        const triangularSuffix = triangularMode ? ' · △ треугольная' : '';
+        document.getElementById('matrix-title').textContent = triangularMode
+          ? `△ ${rowDisplay}${triangularSuffix}`
+          : `Rows: ${rowDisplay} × Cols: ${colDisplay}`;
       } catch (e) {
         console.error('buildMatrix error:', e);
         const container = document.getElementById('matrix-container');
@@ -1465,6 +1700,7 @@
       rows: { key: null, direction: null, mode: 'default', level: null, colIndex: null },
       cols: { key: null, direction: null, mode: 'default', level: null, colIndex: null }
     };
+    let colHeaderRotate = { level0: false, level1: false };
 
     const HISTORY_MAX = 30;
     let undoStack = [];
@@ -1507,7 +1743,12 @@
         })),
         globalSearch: search ? search.value : '',
         mirrorMode,
+        triangularMode,
+        savedColHierarchyBeforeTriangular: savedColHierarchyBeforeTriangular
+          ? [...savedColHierarchyBeforeTriangular]
+          : null,
         matrixSort: JSON.parse(JSON.stringify(matrixSort)),
+        colHeaderRotate: { ...colHeaderRotate },
         activeProfileId
       });
     }
@@ -1525,10 +1766,19 @@
         const search = document.getElementById('global-search');
         if (search) search.value = state.globalSearch || '';
 
-        mirrorMode = !!state.mirrorMode;
+        triangularMode = !!state.triangularMode;
+        savedColHierarchyBeforeTriangular = state.savedColHierarchyBeforeTriangular
+          ? [...state.savedColHierarchyBeforeTriangular]
+          : null;
+        mirrorMode = triangularMode ? false : !!state.mirrorMode;
+        if (triangularMode) syncColHierarchyFromRows();
+
         matrixSort = state.matrixSort
           ? JSON.parse(JSON.stringify(state.matrixSort))
           : getDefaultMatrixSort();
+        colHeaderRotate = state.colHeaderRotate
+          ? { level0: !!state.colHeaderRotate.level0, level1: !!state.colHeaderRotate.level1 }
+          : { level0: false, level1: false };
         activeProfileId = state.activeProfileId || null;
 
         rebuildClashes();
@@ -1539,6 +1789,8 @@
         renderProfileSelector();
         updateClashCountDisplay();
         updateMirrorModeUI();
+        updateTriangularModeUI();
+        updateColRotateButtons();
         buildMatrix();
       } finally {
         suppressProfileDeselect = false;
@@ -1618,6 +1870,21 @@
       };
     }
 
+    function resetMatrixSortToDefault() {
+      if (!lastMatrixData || (!matrixSort.rows.key && !matrixSort.cols.key)) return;
+      recordUndoBeforeChange();
+      resetMatrixSort();
+      rerenderMatrixFromCache();
+      updateResetSortButton();
+    }
+
+    function updateResetSortButton() {
+      const btn = document.getElementById('reset-sort-btn');
+      if (!btn) return;
+      const hasActiveSort = !!(matrixSort.rows.key || matrixSort.cols.key);
+      btn.disabled = !lastMatrixData || !hasActiveSort;
+    }
+
     function resetMatrixSortSide(side) {
       matrixSort[side] = { key: null, direction: null, mode: 'default', level: null, colIndex: null };
     }
@@ -1652,9 +1919,30 @@
       rowPaths.forEach(rowPath => {
         let sum = 0;
         colPaths.forEach(colPath => {
-          sum += leafMatrix.get(makeMatrixKey(rowPath, colPath, hasRows, hasCols)) || 0;
+          const rawCount = leafMatrix.get(makeMatrixKey(rowPath, colPath, hasRows, hasCols)) || 0;
+          if (triangularMode) {
+            sum += getTriangularCellDisplay(rawCount, rowPath, colPath).count;
+          } else {
+            sum += rawCount;
+          }
         });
         totals.set(pathToKey(rowPath), sum);
+      });
+      return totals;
+    }
+
+    function computeRowHiddenTotals(rowPaths, colPaths, leafMatrix, hasRows, hasCols) {
+      const totals = new Map();
+      if (!triangularMode) return totals;
+
+      rowPaths.forEach(rowPath => {
+        let hiddenSum = 0;
+        colPaths.forEach(colPath => {
+          const rawCount = leafMatrix.get(makeMatrixKey(rowPath, colPath, hasRows, hasCols)) || 0;
+          const disp = getTriangularCellDisplay(rawCount, rowPath, colPath);
+          if (disp.hidden && rawCount) hiddenSum += rawCount;
+        });
+        totals.set(pathToKey(rowPath), hiddenSum);
       });
       return totals;
     }
@@ -1685,10 +1973,26 @@
 
       if (sortCfg.mode === 'total') {
         const totals = context.computeTotals(paths);
+        const hiddenTotals = context.computeHiddenTotals ? context.computeHiddenTotals(paths) : null;
         const d = dir === 'desc' ? -1 : 1;
         return [...paths].sort((a, b) => {
           const ta = totals.get(pathToKey(a)) || 0;
           const tb = totals.get(pathToKey(b)) || 0;
+
+          if (context.triangularMode && hiddenTotals) {
+            const aHasVisible = ta > 0;
+            const bHasVisible = tb > 0;
+            if (aHasVisible !== bHasVisible) {
+              return aHasVisible ? -1 : 1;
+            }
+            if (!aHasVisible && !bHasVisible) {
+              const ha = hiddenTotals.get(pathToKey(a)) || 0;
+              const hb = hiddenTotals.get(pathToKey(b)) || 0;
+              if (ha !== hb) return (ha - hb) * d;
+              return comparePathsAlpha(a, b, -1, 'asc');
+            }
+          }
+
           if (ta !== tb) return (ta - tb) * d;
           return comparePathsAlpha(a, b, -1, 'asc');
         });
@@ -1737,9 +2041,12 @@
       renderHierarchicalMatrix(rowGroups, colGroups, leafMatrix, total, rowLevels, colLevels);
     }
 
-    function formatSortLabel(label, side, key, mode) {
+    function formatSortLabel(label, side, key, mode, rotated = false) {
       const cfg = matrixSort[side];
       if (cfg.key === key && cfg.mode === mode && cfg.direction) {
+        if (rotated) {
+          return label + (cfg.direction === 'desc' ? ' ←' : ' →');
+        }
         return label + (cfg.direction === 'desc' ? ' ↓' : ' ↑');
       }
       return label;
@@ -1750,15 +2057,74 @@
       return cfg.key === key && cfg.mode === mode && !!cfg.direction;
     }
 
-    function attachSortableHeader(th, { side, key, mode, level, colIndex, label, title }) {
+    function setColHeaderLabel(th, label, rotate = false) {
+      th.textContent = '';
+      if (rotate) {
+        th.classList.add('matrix-col-header-rotated');
+        const span = document.createElement('span');
+        span.className = 'matrix-col-header-text';
+        span.textContent = label;
+        th.appendChild(span);
+      } else {
+        th.textContent = label;
+      }
+    }
+
+    function attachSortableHeader(th, { side, key, mode, level, colIndex, label, title, rotate = false }) {
       th.classList.add('matrix-sortable');
-      th.textContent = formatSortLabel(label, side, key, mode);
+      const text = formatSortLabel(label, side, key, mode, rotate);
+      th.textContent = '';
+      if (rotate) {
+        th.classList.add('matrix-col-header-rotated');
+        const span = document.createElement('span');
+        span.className = 'matrix-col-header-text';
+        span.textContent = text;
+        th.appendChild(span);
+      } else {
+        th.textContent = text;
+      }
       if (isSortActive(side, key, mode)) th.classList.add('matrix-sort-active');
       th.title = (title || label) + ' · Клик: сортировка (А→Я → Я→А → сброс)';
       th.onclick = (e) => {
         e.stopPropagation();
         cycleMatrixSort(side, key, mode, { level, colIndex });
       };
+    }
+
+    function toggleColHeaderRotate(level) {
+      if (!lastMatrixData) return;
+      recordUndoBeforeChange();
+      if (level === 0) {
+        colHeaderRotate.level0 = !colHeaderRotate.level0;
+      } else {
+        colHeaderRotate.level1 = !colHeaderRotate.level1;
+      }
+      updateColRotateButtons();
+      rerenderMatrixFromCache();
+    }
+
+    function updateColRotateButtons() {
+      const btn0 = document.getElementById('col-rotate-l1-btn');
+      const btn1 = document.getElementById('col-rotate-l2-btn');
+      const numColLvls = lastMatrixData?.colLevels?.length || colHierarchy.length || 0;
+
+      if (btn0) {
+        btn0.classList.toggle('matrix-col-rotate-active', colHeaderRotate.level0);
+        btn0.title = colHeaderRotate.level0
+          ? 'Вернуть горизонтальные названия столбцов 1-го уровня'
+          : 'Повернуть названия столбцов 1-го уровня на 90° против часовой';
+      }
+
+      if (btn1) {
+        const hasSecondLevel = numColLvls >= 2;
+        btn1.disabled = !hasSecondLevel;
+        btn1.classList.toggle('matrix-col-rotate-active', hasSecondLevel && colHeaderRotate.level1);
+        btn1.title = !hasSecondLevel
+          ? 'Доступно при двух уровнях столбцов'
+          : (colHeaderRotate.level1
+            ? 'Вернуть горизонтальные названия столбцов 2-го уровня'
+            : 'Повернуть названия столбцов 2-го уровня на 90° против часовой');
+      }
     }
 
     function buildHierarchicalData(clashes, rowLevels, colLevels) {
@@ -1804,11 +2170,13 @@
       });
     }
 
-    function flattenGroupTree(tree, maxDepth) {
+    function flattenGroupTree(tree, maxDepth, sortKeys = true) {
       const result = [];
       function traverse(map, depth, parentPath) {
-        const sortedKeys = Array.from(map.keys()).sort((a,b) => a.localeCompare(b,'ru'));
-        sortedKeys.forEach(key => {
+        const keys = sortKeys
+          ? Array.from(map.keys()).sort((a, b) => a.localeCompare(b, 'ru'))
+          : Array.from(map.keys());
+        keys.forEach(key => {
           const node = map.get(key);
           const fullPath = [...parentPath, key];
           result.push({
@@ -1825,6 +2193,45 @@
       }
       traverse(tree, 0, []);
       return result;
+    }
+
+    function syncStickyRowColumnLayout(table, numRowLvls) {
+      if (!table || !numRowLvls) return;
+
+      const container = document.getElementById('matrix-container');
+      const headerRow = table.querySelector('thead tr');
+      if (!container || !headerRow) return;
+
+      const headerCells = Array.from(headerRow.children).slice(0, numRowLvls);
+      if (!headerCells.length) return;
+
+      const containerRect = container.getBoundingClientRect();
+      const padLeft = parseFloat(getComputedStyle(container).paddingLeft) || 0;
+
+      const widths = headerCells.map(cell => Math.round(cell.getBoundingClientRect().width));
+      const lefts = headerCells.map(cell => {
+        const cellRect = cell.getBoundingClientRect();
+        return Math.round(cellRect.left - containerRect.left - padLeft + container.scrollLeft);
+      });
+
+      const applySticky = (cell, index, baseZ) => {
+        cell.classList.add('matrix-sticky-col');
+        cell.classList.toggle('matrix-sticky-col-edge', index === numRowLvls - 1);
+        cell.style.position = 'sticky';
+        cell.style.left = lefts[index] + 'px';
+        cell.style.zIndex = String(baseZ + index);
+        cell.style.minWidth = widths[index] + 'px';
+        cell.style.width = widths[index] + 'px';
+        cell.style.maxWidth = widths[index] + 'px';
+        cell.style.boxSizing = 'border-box';
+      };
+
+      headerCells.forEach((cell, i) => applySticky(cell, i, 30));
+
+      table.querySelectorAll('tbody tr').forEach(row => {
+        const cells = Array.from(row.children).slice(0, numRowLvls);
+        cells.forEach((cell, i) => applySticky(cell, i, 15));
+      });
     }
 
     function labelFor(key) {
@@ -1861,20 +2268,18 @@
       const rawRowPaths = getLeafPaths(rowGroups, numRowLvls);
       const rawColPaths = getLeafPaths(colGroups, numColLvls);
 
-      const allColPaths = sortMatrixPathsWithConfig(rawColPaths, matrixSort.cols, {
-        leafMatrix,
-        hasRows,
-        hasCols,
-        colPaths: rawColPaths,
-        computeTotals: (paths) => computeColTotals(paths, rawRowPaths, leafMatrix, hasRows, hasCols)
-      });
+      const allColPaths = sortMatrixPaths(rawColPaths);
 
       const allRowPaths = sortMatrixPathsWithConfig(rawRowPaths, matrixSort.rows, {
         leafMatrix,
         hasRows,
         hasCols,
         colPaths: allColPaths,
-        computeTotals: (paths) => computeRowTotals(paths, allColPaths, leafMatrix, hasRows, hasCols)
+        triangularMode,
+        computeTotals: (paths) => computeRowTotals(paths, allColPaths, leafMatrix, hasRows, hasCols),
+        computeHiddenTotals: triangularMode
+          ? (paths) => computeRowHiddenTotals(paths, allColPaths, leafMatrix, hasRows, hasCols)
+          : null
       });
 
       if ((hasRows && !allRowPaths.length) || (hasCols && !allColPaths.length)) {
@@ -1892,18 +2297,11 @@
 
       const thead = document.createElement('thead');
       const tr1 = document.createElement('tr');
-      tr1.style.position = 'sticky';
-      tr1.style.top = '0';
-      tr1.style.zIndex = '20';
-      tr1.style.backgroundColor = '#fff';
 
       if (hasRows) {
         rowLevels.forEach((lvl, i) => {
           const th = document.createElement('th');
-          th.className = 'bg-blue-100 text-left p-1 text-xs font-semibold border';
-          th.style.position = 'sticky';
-          th.style.left = (i * 105) + 'px';
-          th.style.zIndex = '25';
+          th.className = 'bg-blue-100 text-left p-1 text-xs font-semibold border matrix-row-sticky-header';
           if (useTwoColHeaderRows) th.rowSpan = 2;
           attachSortableHeader(th, {
             side: 'rows',
@@ -1917,11 +2315,8 @@
         });
       } else {
         const th = document.createElement('th');
-        th.className = 'bg-blue-100 text-left p-1 text-xs font-semibold border';
+        th.className = 'bg-blue-100 text-left p-1 text-xs font-semibold border matrix-row-sticky-header';
         th.textContent = 'Итого';
-        th.style.position = 'sticky';
-        th.style.left = '0';
-        th.style.zIndex = '25';
         if (useTwoColHeaderRows) th.rowSpan = 2;
         tr1.appendChild(th);
       }
@@ -1937,18 +2332,9 @@
               mode: 'column',
               colIndex: colIdx,
               label: path[0] || '',
-              title: 'Сортировка строк по столбцу «' + (path.join(' > ') || path[0]) + '»'
+              title: 'Сортировка строк по столбцу «' + (path.join(' > ') || path[0]) + '»',
+              rotate: colHeaderRotate.level0
             });
-            th.onclick = (e) => {
-              if (e.ctrlKey) {
-                e.stopPropagation();
-                cycleMatrixSort('cols', 'level:0', 'alpha', { level: 0 });
-                return;
-              }
-              e.stopPropagation();
-              cycleMatrixSort('rows', 'col:' + colIdx, 'column', { colIndex: colIdx });
-            };
-            th.title += ' · Ctrl+клик: сортировка столбцов А→Я';
             tr1.appendChild(th);
           });
         } else {
@@ -1961,14 +2347,7 @@
             const th = document.createElement('th');
             th.colSpan = c;
             th.className = 'bg-red-100 text-center p-1 text-xs font-semibold border';
-            attachSortableHeader(th, {
-              side: 'cols',
-              key: 'level:0',
-              mode: 'alpha',
-              level: 0,
-              label: colLevels[0] + ': ' + k,
-              title: 'Сортировка столбцов по «' + labelFor(colLevels[0]) + '»'
-            });
+            setColHeaderLabel(th, k, colHeaderRotate.level0);
             tr1.appendChild(th);
           });
         }
@@ -2008,14 +2387,13 @@
 
       if (useTwoColHeaderRows) {
         const tr2 = document.createElement('tr');
-        tr2.style.position = 'sticky';
-        tr2.style.top = '26px';
-        tr2.style.zIndex = '20';
-        tr2.style.backgroundColor = '#fff';
+        const colHeaderTop = colHeaderRotate.level0 ? '176px' : '26px';
 
         allColPaths.forEach((path, colIdx) => {
           const th = document.createElement('th');
           th.className = 'bg-red-50 text-center p-0.5 text-[10px] leading-tight border';
+          th.style.top = colHeaderTop;
+          th.style.zIndex = '12';
           const leafLabel = numColLvls === 2 ? (path[1] || '') : path.slice(1).join(' > ');
           attachSortableHeader(th, {
             side: 'rows',
@@ -2023,20 +2401,9 @@
             mode: 'column',
             colIndex: colIdx,
             label: leafLabel,
-            title: 'Сортировка строк по столбцу «' + path.join(' > ') + '»'
+            title: 'Сортировка строк по столбцу «' + path.join(' > ') + '»',
+            rotate: colHeaderRotate.level1
           });
-          if (numColLvls >= 2) {
-            const prevOnclick = th.onclick;
-            th.onclick = (e) => {
-              if (e.ctrlKey) {
-                e.stopPropagation();
-                cycleMatrixSort('cols', 'level:1', 'alpha', { level: 1 });
-                return;
-              }
-              prevOnclick(e);
-            };
-            th.title += ' · Ctrl+клик: сортировка столбцов по 2-му уровню';
-          }
           tr2.appendChild(th);
         });
 
@@ -2054,21 +2421,15 @@
         if (hasRows) {
           rowPath.forEach((val, i) => {
             const td = document.createElement('td');
-            td.className = 'p-1 text-xs border ' + (i === 0 ? 'font-semibold bg-blue-50' : 'bg-blue-50');
+            td.className = 'p-1 text-xs border matrix-row-sticky-cell ' + (i === 0 ? 'font-semibold bg-blue-50' : 'bg-blue-50');
             td.textContent = val;
-            td.style.position = 'sticky';
-            td.style.left = (i * 105) + 'px';
-            td.style.zIndex = '15';
             td.style.backgroundColor = (i === 0 ? '#dbeafe' : '#eff6ff');
             tr.appendChild(td);
           });
         } else {
           const td = document.createElement('td');
-          td.className = 'p-1 text-xs border font-semibold bg-blue-50';
+          td.className = 'p-1 text-xs border font-semibold bg-blue-50 matrix-row-sticky-cell';
           td.textContent = 'Итого';
-          td.style.position = 'sticky';
-          td.style.left = '0';
-          td.style.zIndex = '15';
           td.style.backgroundColor = '#dbeafe';
           tr.appendChild(td);
         }
@@ -2077,12 +2438,24 @@
 
         if (hasCols) {
           allColPaths.forEach(colPath => {
-            const count = leafMatrix.get(makeMatrixKey(rowPath, colPath, hasRows, hasCols)) || 0;
+            const rawCount = leafMatrix.get(makeMatrixKey(rowPath, colPath, hasRows, hasCols)) || 0;
+            const { count, isDiagonal, hidden } = getTriangularCellDisplay(rawCount, rowPath, colPath);
             rowTotal += count;
 
             const td = document.createElement('td');
-            td.className = 'text-center p-0.5 text-sm border ' + (count > 0 ? 'bg-amber-50 font-medium' : 'bg-white text-slate-300');
-            td.textContent = count > 0 ? count : '';
+            if (hidden) {
+              td.className = 'text-center p-0.5 text-sm border matrix-cell-triangular-hidden';
+              td.textContent = '';
+            } else if (count > 0 && isDiagonal) {
+              td.className = 'text-center p-0.5 text-sm border matrix-cell-diagonal font-medium';
+              td.textContent = count;
+            } else if (count > 0) {
+              td.className = 'text-center p-0.5 text-sm border bg-amber-50 font-medium';
+              td.textContent = count;
+            } else {
+              td.className = 'text-center p-0.5 text-sm border bg-white text-slate-300';
+              td.textContent = '';
+            }
             tr.appendChild(td);
           });
         } else {
@@ -2109,22 +2482,8 @@
 
         rowLevels.forEach((_, i) => {
           const td = document.createElement('td');
-          td.className = 'p-1 text-xs border';
-          if (i === 0) {
-            td.style.position = 'sticky';
-            td.style.left = '0';
-            td.style.zIndex = '15';
-            td.classList.add('matrix-sortable');
-            td.textContent = formatSortLabel('ИТОГО', 'cols', 'total', 'total');
-            if (isSortActive('cols', 'total', 'total')) td.classList.add('matrix-sort-active');
-            td.title = 'Сортировка столбцов по сумме коллизий · Клик: А→Я → Я→А → сброс';
-            td.onclick = (e) => {
-              e.stopPropagation();
-              cycleMatrixSort('cols', 'total', 'total');
-            };
-          } else {
-            td.textContent = '';
-          }
+          td.className = 'p-1 text-xs border matrix-row-sticky-cell';
+          td.textContent = i === 0 ? 'ИТОГО' : '';
           grandTr.appendChild(td);
         });
 
@@ -2132,7 +2491,8 @@
           allColPaths.forEach(colPath => {
             let colSum = 0;
             allRowPaths.forEach(rowPath => {
-              colSum += leafMatrix.get(makeMatrixKey(rowPath, colPath, hasRows, hasCols)) || 0;
+              const rawCount = leafMatrix.get(makeMatrixKey(rowPath, colPath, hasRows, hasCols)) || 0;
+              colSum += getTriangularCellDisplay(rawCount, rowPath, colPath).count;
             });
             const td = document.createElement('td');
             td.className = 'p-0.5 text-center text-xs border bg-violet-50 font-semibold';
@@ -2147,9 +2507,19 @@
         }
 
         if (showRowTotalColumn) {
+          let visibleTotal = total;
+          if (triangularMode && hasCols) {
+            visibleTotal = 0;
+            allRowPaths.forEach(rowPath => {
+              allColPaths.forEach(colPath => {
+                const rawCount = leafMatrix.get(makeMatrixKey(rowPath, colPath, hasRows, hasCols)) || 0;
+                visibleTotal += getTriangularCellDisplay(rawCount, rowPath, colPath).count;
+              });
+            });
+          }
           const gTotalTd = document.createElement('td');
           gTotalTd.className = 'p-1 text-center font-bold border';
-          gTotalTd.textContent = total;
+          gTotalTd.textContent = visibleTotal > 0 ? visibleTotal : '';
           grandTr.appendChild(gTotalTd);
         }
 
@@ -2159,16 +2529,28 @@
       table.appendChild(tbody);
       container.appendChild(table);
 
+      if (numRowLvls > 0) {
+        requestAnimationFrame(() => {
+          syncStickyRowColumnLayout(table, numRowLvls);
+        });
+      }
+
       const rowStats = hasRows ? rowLevels.map(labelFor).join(' → ') : 'Итого';
       const colStats = hasCols ? colLevels.map(labelFor).join(' → ') : 'Итого';
       const mirrorNote = mirrorMode
         ? ` &nbsp;|&nbsp; <span class="text-emerald-600">Отзеркаливание: ${rawClashes.length} → ${clashes.length}</span>`
         : '';
-      const sortNote = (matrixSort.rows.key || matrixSort.cols.key)
-        ? ' &nbsp;|&nbsp; <span class="text-indigo-600">Сортировка активна</span>'
+      const triangularNote = triangularMode
+        ? ` &nbsp;|&nbsp; <span class="text-violet-600">Треугольная матрица (нижний △, диагональ ÷2)</span>`
+        : '';
+      const sortNote = matrixSort.rows.key
+        ? ' &nbsp;|&nbsp; <span class="text-indigo-600">Сортировка строк активна</span>'
         : '';
       document.getElementById('stats').innerHTML =
-        `Всего: <strong>${total}</strong> коллизий${mirrorNote}${sortNote} &nbsp;|&nbsp; Строки: ${rowStats} &nbsp;|&nbsp; Столбцы: ${colStats}`;
+        `Всего: <strong>${total}</strong> коллизий${mirrorNote}${triangularNote}${sortNote} &nbsp;|&nbsp; Строки: ${rowStats} &nbsp;|&nbsp; Столбцы: ${colStats}`;
+
+      updateColRotateButtons();
+      updateResetSortButton();
     }
 
     // Lightweight cell info (optional, can be removed)
@@ -2304,33 +2686,43 @@
         return;
       }
 
-      if (!rowHierarchy.length && !colHierarchy.length) {
+      if (triangularMode) {
+        if (!rowHierarchy.length) {
+          alert('В режиме треугольной матрицы добавьте хотя бы один уровень в иерархию строк');
+          return;
+        }
+        syncColHierarchyFromRows();
+      } else if (!rowHierarchy.length && !colHierarchy.length) {
         alert('Добавьте хотя бы один уровень в иерархию строк или столбцов');
         return;
       }
 
-      const { leafMatrix } = buildHierarchicalData(filtered, rowHierarchy, colHierarchy);
+      const effectiveColHierarchy = triangularMode ? [...rowHierarchy] : colHierarchy;
+      const { leafMatrix } = buildHierarchicalData(filtered, rowHierarchy, effectiveColHierarchy);
 
       const rowLen = rowHierarchy.length;
-      const colLen = colHierarchy.length;
+      const colLen = effectiveColHierarchy.length;
 
       const rowHeaders = rowLen
         ? rowHierarchy.map(h => `${labelFor(h) || h} (строка)`)
         : ['Итого (строка)'];
       const colHeaders = colLen
-        ? colHierarchy.map(h => `${labelFor(h) || h} (столбец)`)
+        ? effectiveColHierarchy.map(h => `${labelFor(h) || h} (столбец)`)
         : ['Итого (столбец)'];
       const headers = [...rowHeaders, ...colHeaders, 'Количество'];
 
       const csvRows = [];
 
       const rowMeta = rowLen ? rowHierarchy.map(labelFor).join(' > ') : 'Итого';
-      const colMeta = colLen ? colHierarchy.map(labelFor).join(' > ') : 'Итого';
+      const colMeta = colLen ? effectiveColHierarchy.map(labelFor).join(' > ') : 'Итого';
       csvRows.push(`"Текущая матрица: строки = ${rowMeta}"`);
       csvRows.push(`"Столбцы = ${colMeta}"`);
       csvRows.push(`"Отфильтровано коллизий: ${filtered.length}"`);
       if (mirrorMode) {
         csvRows.push(`"Режим отзеркаливания: включён (${rawClashes.length} исходных × 2 = ${clashes.length})"`);
+      }
+      if (triangularMode) {
+        csvRows.push(`"Режим треугольной матрицы: включён (верхний треугольник скрыт, диагональ ÷2)"`);
       }
       csvRows.push(''); // blank separator
 
@@ -2338,12 +2730,14 @@
       csvRows.push(headers.map(h => `"${h.replace(/"/g, '""')}"`).join(','));
 
       // Data rows (only combinations that have clashes)
-      leafMatrix.forEach((count, key) => {
-        if (!count) return;
+      leafMatrix.forEach((rawCount, key) => {
+        if (!rawCount) return;
 
         const { rowVals, colVals } = parseMatrixKey(key, rowLen, colLen);
         const displayRowVals = rowLen ? rowVals : ['Итого'];
         const displayColVals = colLen ? colVals : ['Итого'];
+        const { count, hidden } = getTriangularCellDisplay(rawCount, displayRowVals, displayColVals);
+        if (hidden || !count) return;
 
         const row = [...displayRowVals, ...displayColVals, count]
           .map(v => `"${String(v ?? '').replace(/"/g, '""')}"`)
@@ -2363,7 +2757,7 @@
         .replace(/[\\/:*?"<>|]/g, '_')
         .replace(/\s+/g, '_');
       const rowPart = rowLen ? rowHierarchy.map(labelFor).join('-') : 'Итого-rows';
-      const colPart = colLen ? colHierarchy.map(labelFor).join('-') : 'Итого-cols';
+      const colPart = colLen ? effectiveColHierarchy.map(labelFor).join('-') : 'Итого-cols';
 
       a.href = url;
       a.download = `${baseName}_${rowPart}_x_${colPart}.csv`;
@@ -2378,9 +2772,13 @@
       candidates.forEach(c => {
         if (rowHierarchy.length < 2 && availableProps1.some(p => p.key === c)) rowHierarchy.push(c);
       });
-      candidates.forEach(c => {
-        if (colHierarchy.length < 2 && availableProps2.some(p => p.key === c)) colHierarchy.push(c);
-      });
+      if (triangularMode) {
+        syncColHierarchyFromRows();
+      } else {
+        candidates.forEach(c => {
+          if (colHierarchy.length < 2 && availableProps2.some(p => p.key === c)) colHierarchy.push(c);
+        });
+      }
       renderHierarchyUI();
     }
 
@@ -2422,6 +2820,8 @@
 
       rawClashes = parsed;
       mirrorMode = false;
+      triangularMode = false;
+      savedColHierarchyBeforeTriangular = null;
       resetMatrixSort();
       lastMatrixData = null;
       clearHistory();
@@ -2452,6 +2852,7 @@
       document.getElementById('raw-hint').classList.remove('hidden');
       updateClashCountDisplay();
       updateMirrorModeUI();
+      updateTriangularModeUI();
 
       populatePropertySelectors();
       renderTestFilters();
@@ -2526,6 +2927,8 @@
 
       rawClashes = demoClashes;
       mirrorMode = false;
+      triangularMode = false;
+      savedColHierarchyBeforeTriangular = null;
       resetMatrixSort();
       lastMatrixData = null;
       clearHistory();
@@ -2546,6 +2949,7 @@
       document.getElementById('raw-hint').classList.remove('hidden');
       updateClashCountDisplay();
       updateMirrorModeUI();
+      updateTriangularModeUI();
 
       uniqueTests = [...new Set(clashes.map(c => c.testName).filter(Boolean))];
       activeTestFilters = [...uniqueTests];
@@ -2579,7 +2983,9 @@
           value: value || ''
         })),
         globalSearch: search ? search.value : '',
-        mirrorMode
+        mirrorMode,
+        triangularMode,
+        colHeaderRotate: { ...colHeaderRotate }
       };
     }
 
@@ -2608,21 +3014,26 @@
       let statuses = (state.activeStatusFilters || []).filter(s => uniqueStatuses.includes(s));
       if (!statuses.length && uniqueStatuses.length) statuses = [...uniqueStatuses];
 
+      const triangular = !!state.triangularMode;
       const filters = (state.propertyFilters || []).map(f => ({
         prop: migratePropKey(f.prop || ''),
-        side: f.side || 'both',
+        side: triangular ? 'both' : (f.side || 'both'),
         operator: f.operator || 'contains',
         value: f.value || ''
       })).filter(f => f.prop);
 
       return {
         rowHierarchy: row,
-        colHierarchy: col,
+        colHierarchy: triangular ? [...row] : col,
         activeTestFilters: tests,
         activeStatusFilters: statuses,
         propertyFilters: filters,
         globalSearch: state.globalSearch || '',
-        mirrorMode: !!state.mirrorMode
+        mirrorMode: triangular ? false : !!state.mirrorMode,
+        triangularMode: triangular,
+        colHeaderRotate: state.colHeaderRotate
+          ? { level0: !!state.colHeaderRotate.level0, level1: !!state.colHeaderRotate.level1 }
+          : { level0: false, level1: false }
       };
     }
 
@@ -2645,15 +3056,27 @@
         const search = document.getElementById('global-search');
         if (search) search.value = sanitized.globalSearch;
 
+        triangularMode = !!sanitized.triangularMode;
         mirrorMode = sanitized.mirrorMode;
+        colHeaderRotate = sanitized.colHeaderRotate
+          ? { level0: !!sanitized.colHeaderRotate.level0, level1: !!sanitized.colHeaderRotate.level1 }
+          : { level0: false, level1: false };
+        if (triangularMode) {
+          savedColHierarchyBeforeTriangular = [...sanitized.colHierarchy];
+          syncColHierarchyFromRows();
+        } else {
+          savedColHierarchyBeforeTriangular = null;
+        }
         rebuildClashes();
         updateClashCountDisplay();
         updateMirrorModeUI();
+        updateTriangularModeUI();
 
         restorePropertyFilterRows(sanitized.propertyFilters);
         renderHierarchyUI();
         renderTestFilters();
         renderStatusFilters();
+        updateColRotateButtons();
         buildMatrix();
       } finally {
         suppressProfileDeselect = false;
@@ -2798,7 +3221,8 @@
             activeStatusFilters: Array.isArray(p.state.activeStatusFilters) ? p.state.activeStatusFilters : [],
             propertyFilters: Array.isArray(p.state.propertyFilters) ? p.state.propertyFilters : [],
             globalSearch: p.state.globalSearch || '',
-            mirrorMode: !!p.state.mirrorMode
+            mirrorMode: !!p.state.mirrorMode,
+            triangularMode: !!p.state.triangularMode
           }
         }))
         .filter(p => p.name);
@@ -2888,6 +3312,8 @@
       lastMatrixData = null;
       clearHistory();
       mirrorMode = false;
+      triangularMode = false;
+      savedColHierarchyBeforeTriangular = null;
       rowHierarchy = [];
       colHierarchy = [];
       uniqueTests = [];
@@ -2906,6 +3332,7 @@
 
       clearPropertyFilterRows();
       updateMirrorModeUI();
+      updateTriangularModeUI();
       updateClashCountDisplay();
 
       document.getElementById('matrix-container').innerHTML = '';
@@ -2973,7 +3400,10 @@
       initFullscreenSupport();
       initDefaultProfiles();
       renderProfileSelector();
+      updateColRotateButtons();
+      updateResetSortButton();
       updateHistoryButtons();
+      updateTriangularModeUI();
 
       // Auto hint if file exists in same folder context
       console.log('%c[Navisworks Matrix] HTML сервис готов. Загрузите отчёт.', 'color:#64748b');
